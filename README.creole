@@ -1,0 +1,15 @@
+= GuiAPI =
+
+GuiAPI uses the TWL library from Matthias Mann (probably spelled his name wrong), see [[http://twl.l33tlabs.org/|twl.l33tlabs.org]]
+
+==Building==
+* First decompile the needed minecraft classes with jad, then run them through astyle --break-blocks --delete-empty-lines --style=java
+* Apply the diffs in diffs/ to your decompiled minecraft and copy those java files to src/
+* Build (I use eclipse)
+** You need .minecraft/bin/*.jar, Modloader, twl/bin, and xpp on your build classpath.
+
+==Packaging==
+To create a distributable archive, package twl/bin/*, xpp*/*, theme/*, and bin/*.
+
+==Credits==
+Lots of people who I forget. Open an issue or something if you helped ...

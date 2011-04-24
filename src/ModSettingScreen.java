@@ -57,7 +57,7 @@ public class ModSettingScreen {
 		w = new WidgetClassicTwocolumn(); 
 		
 		
-		thewidget = new WidgetClassicWindow(w, nicename);
+		thewidget = new WidgetSimplewindow(w, nicename);
 		
 		
 	}

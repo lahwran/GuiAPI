@@ -15,7 +15,7 @@ public class Subscreen extends Button implements Runnable {
 		super(buttontitle);
 		setTheme("/button");
 		subsubWindow = new WidgetClassicTwocolumn();
-		subscreenwindow = new WidgetClassicWindow(subsubWindow,menutitle);
+		subscreenwindow = new WidgetSimplewindow(subsubWindow,menutitle);
 		SimpleButtonModel s = new SimpleButtonModel();
 		s.addActionCallback(this);
 		setModel(s);
@@ -25,7 +25,7 @@ public class Subscreen extends Button implements Runnable {
 		super(buttontitle);
 		setTheme("/button");
 		subsubWindow = subwidget;
-		subscreenwindow = new WidgetClassicWindow(subsubWindow,menutitle);
+		subscreenwindow = new WidgetSimplewindow(subsubWindow,menutitle);
 		SimpleButtonModel s = new SimpleButtonModel();
 		s.addActionCallback(this);
 		setModel(s);

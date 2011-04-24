@@ -6,5 +6,7 @@
 	<classpathentry kind="lib" path="/home/blendmaster/.minecraft/bin/lwjgl_util.jar"/>
 	<classpathentry kind="lib" path="/home/blendmaster/.minecraft/bin/lwjgl.jar"/>
 	<classpathentry kind="lib" path="/home/blendmaster/.minecraft/bin/jinput.jar"/>
+	<classpathentry kind="lib" path="xpp3-1.1.4c"/>
+	<classpathentry kind="lib" path="twl/bin"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

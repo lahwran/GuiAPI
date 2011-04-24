@@ -9,7 +9,7 @@ import de.matthiasmann.twl.model.SimpleButtonModel;
 
 public class GuiModSelect extends GuiModScreen {
 
-	protected GuiModSelect(cf by1) {
+	protected GuiModSelect(cs by1) {
 		super(by1);
 		WidgetClassicTwocolumn w=new WidgetClassicTwocolumn();
 		for(int i=0; i<ModSettingScreen.modscreens.size();i++)
@@ -25,7 +25,7 @@ public class GuiModSelect extends GuiModScreen {
 		w.add(new Button("button 2"));
 		w.add(new Button("button 3"));
 		w.add(new Button("button 4"));*/
-		mainwidget = new WidgetClassicWindow(w, "Select a Mod");
+		mainwidget = new WidgetSimplewindow(w, "Select a Mod");
 		
 		// TODO Auto-generated constructor stub
 	}

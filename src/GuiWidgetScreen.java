@@ -43,23 +43,28 @@ public class GuiWidgetScreen extends Widget {
 		}
 		else
 		{
-			instance = new GuiWidgetScreen();
 			try {
+				instance = new GuiWidgetScreen();
 				instance.renderer = new LWJGLRenderer();
-			} catch (LWJGLException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			String themename = "twlGuiTheme.xml";
-			instance.gui = new GUI(instance, instance.renderer, new LWJGLInput());//,new MCTWLInput());
-			ModSettings.dbgout(GuiWidgetScreen.class.getResource(themename).toString());
-            try {
+				
+				String themename = "twlGuiTheme.xml";
+				instance.gui = new GUI(instance, instance.renderer, new LWJGLInput());//,new MCTWLInput());
+				ModSettings.dbgout(GuiWidgetScreen.class.getResource(themename).toString());
+            
 				instance.theme = ThemeManager.createThemeManager(GuiWidgetScreen.class.getResource(themename), instance.renderer);
 				if(instance.theme == null)
 				{
 					throw new RuntimeException("I don't think you installed the theme correctly ...");
 				}
-            } catch (IOException e) {
+            
+	            instance.gui.applyTheme(instance.theme);
+	            
+	            instance.setTheme("");
+	            
+	            instance.mcinstance = ModLoader.getMinecraftInstance();
+	            instance.screensize=new ScreenScaleProxy( instance.mcinstance.c, instance.mcinstance.d);
+            
+			} catch (Throwable e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 				RuntimeException e2 =  new RuntimeException("error loading theme");
@@ -67,14 +72,6 @@ public class GuiWidgetScreen extends Widget {
 				throw e2;
 				
 			}
-            instance.gui.applyTheme(instance.theme);
-            
-            instance.setTheme("");
-            
-            instance.mcinstance = ModLoader.getMinecraftInstance();
-            instance.screensize=new ScreenScaleProxy( instance.mcinstance.c, instance.mcinstance.d);
-            
-
 			return instance;
 		}
 	}

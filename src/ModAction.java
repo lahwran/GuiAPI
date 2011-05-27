@@ -22,7 +22,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 
-class ModAction implements Runnable {
+public class ModAction implements Runnable {
     protected List<Object> handlerObjects = new ArrayList<Object>();
     protected List<String> handlerMethods = new ArrayList<String>();
 

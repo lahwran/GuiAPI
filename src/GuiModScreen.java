@@ -79,11 +79,11 @@ public class GuiModScreen extends cs {
         {
             Minecraft m = ModLoader.getMinecraftInstance();
             m.a(currentscreen.parentScreen);
+            if (currentscreen.parentScreen instanceof GuiModScreen)
+                currentscreen = (GuiModScreen)currentscreen.parentScreen;
+            else
+                currentscreen = null;
         }
-        if (currentscreen.parentScreen instanceof GuiModScreen)
-            currentscreen = (GuiModScreen)currentscreen.parentScreen;
-        else
-            currentscreen = null;
     }
 
     /**

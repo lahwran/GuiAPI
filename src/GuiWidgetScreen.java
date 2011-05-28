@@ -62,7 +62,7 @@ public class GuiWidgetScreen extends Widget {
 	            instance.setTheme("");
 	            
 	            instance.mcinstance = ModLoader.getMinecraftInstance();
-	            instance.screensize=new ScreenScaleProxy( instance.mcinstance.c, instance.mcinstance.d);
+	            instance.screensize=new ScreenScaleProxy( instance.mcinstance.d, instance.mcinstance.e);
             
 			} catch (Throwable e) {
 				// TODO Auto-generated catch block
@@ -107,7 +107,7 @@ public class GuiWidgetScreen extends Widget {
 	 */
 	public void layout()
 	{
-        screensize=new ScreenScaleProxy( mcinstance.c, mcinstance.d);
+        screensize=new ScreenScaleProxy( mcinstance.d, mcinstance.e);
 		if (currentwidget != null)
 		{
 			screenwidth=screensize.a();

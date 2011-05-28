@@ -15,12 +15,12 @@ import de.matthiasmann.twl.Widget;
 import de.matthiasmann.twl.renderer.lwjgl.LWJGLRenderer;
 import de.matthiasmann.twl.renderer.lwjgl.RenderScale;
 
-public class GuiModScreen extends cs {
+public class GuiModScreen extends cy {
     /**
      * reference to parent screen, is used to go back()
      * @see back()
      */
-    public cs parentScreen;
+    public cy parentScreen;
     public boolean drawbg = true;
     /**
      * actual main widget of this guiscreen
@@ -52,7 +52,7 @@ public class GuiModScreen extends cs {
      * mainwidget, of course.
      * @param by1 parent screen
      */
-    protected GuiModScreen(cs by1)
+    protected GuiModScreen(cy by1)
     {
         parentScreen = by1;
         currentscreen = this;
@@ -63,7 +63,7 @@ public class GuiModScreen extends cs {
      * @param by1 parent screen - make sure this is right!
      * @param w main widget to display
      */
-    public GuiModScreen(cs by1, Widget w)
+    public GuiModScreen(cy by1, Widget w)
     {
         mainwidget = w;
         parentScreen = by1;
@@ -119,7 +119,7 @@ public class GuiModScreen extends cs {
     public static void clicksound()
     {
         Minecraft m = ModLoader.getMinecraftInstance();
-        m.A.a("random.click", 1.0F, 1.0F);
+        m.B.a("random.click", 1.0F, 1.0F);
 
     }
 
@@ -202,11 +202,11 @@ public class GuiModScreen extends cs {
          */
         LWJGLRenderer r = (LWJGLRenderer)GuiWidgetScreen.getInstance().gui.getRenderer();
 
-        ScreenScaleProxy screensize = new ScreenScaleProxy(GuiWidgetScreen.getInstance().mcinstance.c, GuiWidgetScreen.getInstance().mcinstance.d);
+        ScreenScaleProxy screensize = new ScreenScaleProxy(GuiWidgetScreen.getInstance().mcinstance.d, GuiWidgetScreen.getInstance().mcinstance.e);
 
-        int width = GuiWidgetScreen.getInstance().mcinstance.c / screensize.c;
-        int height = GuiWidgetScreen.getInstance().mcinstance.d / screensize.c;
-        int posy = GuiWidgetScreen.getInstance().mcinstance.d - height;
+        //int width = GuiWidgetScreen.getInstance().mcinstance.d / screensize.c;
+        //int height = GuiWidgetScreen.getInstance().mcinstance.e / screensize.c;
+        //int posy = GuiWidgetScreen.getInstance().mcinstance.e - height;
         // GL11.glViewport(0, posy, width, height);
         // System.out.println(""+width+" "+height+" "+screensize.a()+" "+screensize.b());
 

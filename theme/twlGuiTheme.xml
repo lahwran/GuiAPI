@@ -145,8 +145,6 @@
         <theme name="hscrollbar" ref="hscrollbar"/>
         <theme name="vscrollbar" ref="vscrollbar"/>
         <param name="scrollbarsAlwaysVisible"><bool>false</bool></param>
-        <param name="autoScrollArea"><int>0</int></param>
-        <param name="autoScrollSpeed"><int>0</int></param>
         <param name="hasDragButton"><bool>false</bool></param>
     </theme>
     <theme name="textarea" ref="-defaults" allowWildcard="true">

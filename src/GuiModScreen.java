@@ -95,7 +95,9 @@ public class GuiModScreen extends cy {
     public static void show(Widget screen)
     {
         Minecraft m = ModLoader.getMinecraftInstance();
-        m.a(new GuiModScreen(currentscreen, screen));
+        GuiModScreen scr = new GuiModScreen(currentscreen, screen);
+        m.a(scr);
+        scr.setActive();
     }
 
     /**
@@ -110,6 +112,7 @@ public class GuiModScreen extends cy {
         // screen.parentScreen = currentscreen; // >8|
         Minecraft m = ModLoader.getMinecraftInstance();
         m.a(screen);
+        screen.setActive();
     }
 
     /**
@@ -126,15 +129,19 @@ public class GuiModScreen extends cy {
     /**
      * internal - actually sets the TWL screen.
      */
-    public void a()
+    private void setActive()
     {
         GuiWidgetScreen.getInstance().setScreen(mainwidget);
-
     }
 
     // protected void a(int x, int y, int button){}
     private int t = 0;
 
+    boolean firstrun = true;
+    
+    //handleInput - is empty as this is where input is normally handled and we handle it elsewhere
+    public void e(){}
+    
     public void a(int j, int k, float f)
     {
         if (drawbg) i();// render default background

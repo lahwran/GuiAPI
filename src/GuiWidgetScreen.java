@@ -56,10 +56,10 @@ public class GuiWidgetScreen extends Widget {
 				{
 					throw new RuntimeException("I don't think you installed the theme correctly ...");
 				}
-            
+
+                instance.setTheme("");
 	            instance.gui.applyTheme(instance.theme);
 	            
-	            instance.setTheme("");
 	            
 	            instance.mcinstance = ModLoader.getMinecraftInstance();
 	            instance.screensize=new ScreenScaleProxy( instance.mcinstance.d, instance.mcinstance.e);

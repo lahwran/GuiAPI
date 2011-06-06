@@ -56,6 +56,7 @@ public class GuiModScreen extends cy {
     {
         parentScreen = by1;
         currentscreen = this;
+        f = false;
     }
 
     /**
@@ -68,6 +69,7 @@ public class GuiModScreen extends cy {
         mainwidget = w;
         parentScreen = by1;
         currentscreen = this;
+        f = false;
     }
 
     /**
@@ -80,7 +82,10 @@ public class GuiModScreen extends cy {
             Minecraft m = ModLoader.getMinecraftInstance();
             m.a(currentscreen.parentScreen);
             if (currentscreen.parentScreen instanceof GuiModScreen)
+            {
                 currentscreen = (GuiModScreen)currentscreen.parentScreen;
+                currentscreen.setActive();
+            }
             else
                 currentscreen = null;
         }
@@ -136,8 +141,6 @@ public class GuiModScreen extends cy {
 
     // protected void a(int x, int y, int button){}
     private int t = 0;
-
-    boolean firstrun = true;
     
     //handleInput - is empty as this is where input is normally handled and we handle it elsewhere
     public void e(){}

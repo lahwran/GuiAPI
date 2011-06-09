@@ -21,10 +21,13 @@
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.security.InvalidParameterException;
 
 public class ModAction implements Runnable {
     protected List<Object> handlerObjects = new ArrayList<Object>();
     protected List<String> handlerMethods = new ArrayList<String>();
+
+    protected Object[] defaultArguments;
 
     @SuppressWarnings("unchecked")
     protected Class[] params;
@@ -239,26 +242,34 @@ public class ModAction implements Runnable {
     }
 
     /**
-     * runnable call, simply calls call() with no arguments - will cause an
-     * error if you call it on a modaction that takes arguments!
+     * This sets the arguments to use when using run().
+     * If this is not used, run calls the requested method with no arguments.
+     * Throws InvalidParameterException if the arguments provided do not match the method parameters, or are unassignable to those types.
      */
+    @SuppressWarnings("rawtypes")
+	public ModAction setDefaultArguments(Object... Arguments)
+    {
+    	if(Arguments.length != params.length)
+    		throw new InvalidParameterException("Arguments do not match the parameters.");
+    	for (int i = 0; i < params.length; i++) {
+    		Class value = params[i];
+			if(!value.isInstance(Arguments[i]))
+				throw new InvalidParameterException("Arguments do not match the parameters.");
+		}
+    	defaultArguments = Arguments;
+    	return this;
+    }
+    
+    /**
+* Runnable call. If no default arguments are present it will call the method with no arguments. If the method has parameters, it will throw an exception.
+* If default arguments are provided using setDefaultArguments, it will use those arguments.
+*/
     @Override
     public void run()
     {
-        call(); // because we might have arguments, we don't want to replace
-                // call
+    	if(defaultArguments == null)
+    		call();
+    	else
+    		call(defaultArguments);
     }
-
-    // public <T> T invokeMethod(Object o, String name, Class[] params,
-    // Object... args)
-    // throws InvocationTargetException,
-    // NoSuchMethodException,
-    // IllegalAccessException
-    // {
-    // Method m = (o instanceof Class ? (Class<?>)o :
-    // o.getClass()).getDeclaredMethod(name, params);
-    // m.setAccessible(true);
-
-    // return (T)(m.invoke((o instanceof Class ? null : o), args));
-    // }
 }

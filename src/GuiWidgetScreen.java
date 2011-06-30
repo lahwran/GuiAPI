@@ -49,9 +49,9 @@ public class GuiWidgetScreen extends Widget {
 				
 				String themename = "twlGuiTheme.xml";
 				instance.gui = new GUI(instance, instance.renderer, new LWJGLInput());//,new MCTWLInput());
-				ModSettings.dbgout(GuiWidgetScreen.class.getResource(themename).toString());
+				ModSettings.dbgout(GuiWidgetScreen.class.getClassLoader().getResource(themename).toString());
             
-				instance.theme = ThemeManager.createThemeManager(GuiWidgetScreen.class.getResource(themename), instance.renderer);
+				instance.theme = ThemeManager.createThemeManager(GuiWidgetScreen.class.getClassLoader().getResource(themename), instance.renderer);
 				if(instance.theme == null)
 				{
 					throw new RuntimeException("I don't think you installed the theme correctly ...");

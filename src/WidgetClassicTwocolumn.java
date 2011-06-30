@@ -1,5 +1,5 @@
+import java.util.ArrayList;
 import de.matthiasmann.twl.Widget;
-
 
 public class WidgetClassicTwocolumn extends Widget {
 	public int defaultwidth = 150;
@@ -7,6 +7,9 @@ public class WidgetClassicTwocolumn extends Widget {
 	public int defaultpad = 4;
 	public boolean overridewidth = true;
 	public boolean overrideheight = true;
+	
+	public ArrayList<Class> classheightexceptions = new ArrayList<Class>();
+	public ArrayList<Integer> indexheightexceptions = new ArrayList<Integer>();
 	
 	public WidgetClassicTwocolumn(Widget... ws)
 	{
@@ -29,15 +32,26 @@ public class WidgetClassicTwocolumn extends Widget {
 	@Override
 	public void layout()
 	{
-		
+		int ycounter = 0;
+		int rowheight = defaultheight;
 		for(int i=0; i<getNumChildren(); i++)
 		{
 			
 			Widget w = getChild(i);
 			int height = defaultheight;
-			if (!overrideheight)
+			if (!overrideheight || classheightexceptions.contains(w.getClass()) || indexheightexceptions.contains(i))
 			{
 				height = w.getPreferredHeight();
+			}
+			if(i % 2 == 0)
+			{
+				ycounter += rowheight;
+				rowheight = height;
+			}
+			else
+			{
+				if(height > rowheight)
+					rowheight = height;
 			}
 			int width = defaultwidth;
 			if(!overridewidth)
@@ -45,13 +59,14 @@ public class WidgetClassicTwocolumn extends Widget {
 				width = w.getPreferredWidth();
 			}
 			w.setSize(width,height);
+			
 			if(i % 2 == 0)
 			{
-				w.setPosition(getX()+getWidth()/2 - (150+split/2), getY() + (defaultheight+defaultpad)  * (i >> 1));
+				w.setPosition(getX()+getWidth()/2 - (150+split/2), getY() + ycounter);
 			}
 			else
 			{
-				w.setPosition( getX()+getWidth()/2 + (split/2), getY() + (defaultheight+defaultpad) * (i >> 1));
+				w.setPosition( getX()+getWidth()/2 + (split/2), getY() + ycounter);
 			}
 			
 		}

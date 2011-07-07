@@ -15,12 +15,12 @@ import de.matthiasmann.twl.Widget;
 import de.matthiasmann.twl.renderer.lwjgl.LWJGLRenderer;
 import de.matthiasmann.twl.renderer.lwjgl.RenderScale;
 
-public class GuiModScreen extends cy {
+public class GuiModScreen extends da {
     /**
      * reference to parent screen, is used to go back()
      * @see back()
      */
-    public cy parentScreen;
+    public da parentScreen;
     public boolean drawbg = true;
     /**
      * actual main widget of this guiscreen
@@ -52,7 +52,7 @@ public class GuiModScreen extends cy {
      * mainwidget, of course.
      * @param by1 parent screen
      */
-    protected GuiModScreen(cy by1)
+    protected GuiModScreen(da by1)
     {
         parentScreen = by1;
         currentscreen = this;
@@ -64,7 +64,7 @@ public class GuiModScreen extends cy {
      * @param by1 parent screen - make sure this is right!
      * @param w main widget to display
      */
-    public GuiModScreen(cy by1, Widget w)
+    public GuiModScreen(da by1, Widget w)
     {
         mainwidget = w;
         parentScreen = by1;
@@ -79,7 +79,7 @@ public class GuiModScreen extends cy {
     {
         if (currentscreen != null)
         {
-            Minecraft m = ModLoader.getMinecraftInstance();
+            Minecraft m = ModSettings.mcinst;
             m.a(currentscreen.parentScreen);
             if (currentscreen.parentScreen instanceof GuiModScreen)
             {
@@ -99,7 +99,7 @@ public class GuiModScreen extends cy {
      */
     public static void show(Widget screen)
     {
-        Minecraft m = ModLoader.getMinecraftInstance();
+        Minecraft m = ModSettings.mcinst;
         GuiModScreen scr = new GuiModScreen(currentscreen, screen);
         m.a(scr);
         scr.setActive();
@@ -115,7 +115,7 @@ public class GuiModScreen extends cy {
     public static void show(GuiModScreen screen)
     {
         // screen.parentScreen = currentscreen; // >8|
-        Minecraft m = ModLoader.getMinecraftInstance();
+        Minecraft m = ModSettings.mcinst;
         m.a(screen);
         screen.setActive();
     }
@@ -126,7 +126,7 @@ public class GuiModScreen extends cy {
      */
     public static void clicksound()
     {
-        Minecraft m = ModLoader.getMinecraftInstance();
+        Minecraft m = ModSettings.mcinst;
         m.B.a("random.click", 1.0F, 1.0F);
 
     }

@@ -9,7 +9,7 @@ import de.matthiasmann.twl.model.SimpleButtonModel;
 
 public class GuiModSelect extends GuiModScreen {
 
-	protected GuiModSelect(cy by1) {
+	protected GuiModSelect(da by1) {
 		super(by1);
 		WidgetClassicTwocolumn w=new WidgetClassicTwocolumn();
 		for(int i=0; i<ModSettingScreen.modscreens.size();i++)

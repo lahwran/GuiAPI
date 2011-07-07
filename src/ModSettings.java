@@ -6,6 +6,7 @@
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Properties;
@@ -42,6 +43,38 @@ public class ModSettings {
 	
 	public boolean have_loaded = false;
 	
+	public static final Minecraft mcinst = getMcinst();
+	public static Minecraft getMcinst()
+	{
+        Field f;
+	    try {
+
+            f = Minecraft.class.getDeclaredFields()[1];
+            f.setAccessible(true);
+            
+            Minecraft m = (Minecraft)f.get(null);
+            
+            if(m != null)
+                return m;
+	        
+	        f = Thread.class.getDeclaredField("target");
+	        f.setAccessible(true);
+	        
+	        ThreadGroup group = Thread.currentThread().getThreadGroup();
+	        int count = group.activeCount();
+	        Thread[] threads = new Thread[count];
+	        group.enumerate(threads);
+	        for (int i = 0; i < threads.length; i++)
+	          if (threads[i].getName().equals("Minecraft main thread")) {
+	            return (Minecraft)f.get(threads[i]);
+	          }
+	      }
+        catch (Throwable t)
+        {
+            throw new RuntimeException(t);
+        }
+        throw new RuntimeException("You are a godless monkey! why are you doing weird things with the innards of minecraft?");
+	}
 	
 	/**
 	 * @param modbackendname used to initialize class modbackendname field

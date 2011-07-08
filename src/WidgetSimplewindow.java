@@ -11,11 +11,9 @@ public class WidgetSimplewindow extends Widget {
     public WidgetSingleRow buttonbar = null;
     //public WidgetHoriGroup buttonbar = null; 
     
-    protected WidgetSimplewindow()
+    public WidgetSimplewindow()
     {
-        Title = "test";
-        setTheme("");
-        init();
+        this(new WidgetClassicTwocolumn(), "WidgetSimplewindow test");
     }
     
     public WidgetSimplewindow(Widget w)
@@ -58,17 +56,17 @@ public class WidgetSimplewindow extends Widget {
     {
         int s = 1;
         buttonbar.setSize(buttonbar.getPreferredWidth(), buttonbar.getPreferredHeight());
-        buttonbar.setPosition((GuiWidgetScreen.screenwidth/2) - (buttonbar.getPreferredWidth()/2), GuiWidgetScreen.screenheight - (buttonbar.getPreferredHeight()+4));
+        buttonbar.setPosition((getWidth()/2) - (buttonbar.getPreferredWidth()/2), getHeight() - (buttonbar.getPreferredHeight()+4));
         //System.out.println("layout call");
         
-        TitleWidget.setPosition(GuiWidgetScreen.screenwidth/2 - TitleWidget.computeTextWidth()/2, 10*s);
+        TitleWidget.setPosition(getWidth()/2 - TitleWidget.computeTextWidth()/2, 10*s);
         TitleWidget.setSize(TitleWidget.computeTextWidth(), TitleWidget.computeTextHeight());
         //TitleWidget.adjustSize();
         
         int hpad=30*s;
         int vpad=40*s;
         mainwidget.setPosition(hpad,vpad);
-        mainwidget.setSize(GuiWidgetScreen.screenwidth-(hpad*2), GuiWidgetScreen.screenheight-(vpad*2));
+        mainwidget.setSize(getWidth()-(hpad*2), getHeight()-(vpad*2));
         //BackButton.setPosition(0,0);
     }
 }

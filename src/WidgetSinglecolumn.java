@@ -12,12 +12,11 @@ public class WidgetSinglecolumn extends WidgetClassicTwocolumn {
     @Override
     public void layout()
     {
-        int ycounter = defaultheight;
         for(int i=0; i<getNumChildren(); i++)
         {
             Widget w = getChild(i);
             int height = defaultheight;
-            if (!overrideheight || classheightexceptions.contains(w.getClass()) || indexheightexceptions.contains(i))
+            if (!overrideheight)
             {
                 height = w.getPreferredHeight();
             }
@@ -27,8 +26,7 @@ public class WidgetSinglecolumn extends WidgetClassicTwocolumn {
                 width = w.getPreferredWidth();
             }
             w.setSize(width,height);
-            w.setPosition(getX()+getWidth()/2-w.getWidth()/2, getY() + ycounter );
-            ycounter += height + defaultpad;
+            w.setPosition(getX()+getWidth()/2-w.getWidth()/2, getY() + 24 * i );
         }
     }
 

@@ -50,7 +50,9 @@ public class WidgetSimplewindow extends Widget {
         
         add(mainwidget);
     }
-    
+    public int hpad=30;
+    public int vtop=30;
+    public int vbot=40;
     @Override
     public void layout()
     {
@@ -63,10 +65,9 @@ public class WidgetSimplewindow extends Widget {
         TitleWidget.setSize(TitleWidget.computeTextWidth(), TitleWidget.computeTextHeight());
         //TitleWidget.adjustSize();
         
-        int hpad=30*s;
-        int vpad=40*s;
-        mainwidget.setPosition(hpad,vpad);
-        mainwidget.setSize(getWidth()-(hpad*2), getHeight()-(vpad*2));
+        
+        mainwidget.setPosition(hpad,vtop);
+        mainwidget.setSize(getWidth()-(hpad*2), getHeight()-(vtop+vbot));
         //BackButton.setPosition(0,0);
     }
 }

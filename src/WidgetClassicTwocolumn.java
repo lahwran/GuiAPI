@@ -8,13 +8,6 @@ public class WidgetClassicTwocolumn extends Widget {
     public boolean overridewidth = true;
     public boolean overrideheight = true;
     
-    public WidgetClassicTwocolumn()
-    {
-        setTheme("");
-        for(int i=0; i<10; i++)
-            add(new Button("test "+i)); 
-    }
-    
     public WidgetClassicTwocolumn(Widget... ws)
     {
         for(int i=0; i<ws.length; i++)
@@ -33,9 +26,11 @@ public class WidgetClassicTwocolumn extends Widget {
         super.add(child);
     }*/
     public int split = 10;
+    public int vpad = 0;
     @Override
     public void layout()
     {
+        if(getParent().getTheme().equals("scrollpane-notch")) vpad = 10;
         for(int i=0; i<getNumChildren(); i++)
         {
             
@@ -54,11 +49,11 @@ public class WidgetClassicTwocolumn extends Widget {
             
             if(i % 2 == 0)
             {
-                w.setPosition(getX()+getWidth()/2 - (150+split/2), getY() + (defaultheight+defaultpad)  * (i >> 1));
+                w.setPosition(getX()+getWidth()/2 - (150+split/2), getY() + (defaultheight+defaultpad)  * (i >> 1) + vpad);
             }
             else
             {
-                w.setPosition( getX()+getWidth()/2 + (split/2), getY() + (defaultheight+defaultpad)  * (i >> 1));
+                w.setPosition( getX()+getWidth()/2 + (split/2), getY() + (defaultheight+defaultpad)  * (i >> 1) + vpad);
             }
             
         }
@@ -71,6 +66,6 @@ public class WidgetClassicTwocolumn extends Widget {
     
     public int getPreferredHeight()
     {
-        return (defaultheight+defaultpad) * (1 * (getNumChildren() + 1)>>1);
+        return (defaultheight+defaultpad) * (1 * (getNumChildren() + 1)>>1) + vpad*2;
     }
 }

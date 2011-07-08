@@ -60,6 +60,12 @@
             <alias ref="button-border-normal"/>
         </composed>
     </images>
+    <images file="scrollwindow.png">
+        <area name="scrollwindow_tint" xywh="75,80,1,1"/>
+        <area name="scrollwindow_shadow" xywh="50,21,1,123" splity="T9,B9"/>
+        <area name="scrollbarbg" xywh="115,80,6,6"/>
+        <area name="scrollbar" xywh="115,74,6,6" splitx="L0,R1" splity="T0,B1"/>
+    </images>
 
     <theme name="-defaults">
         <param name="background"><image>none</image></param>
@@ -146,6 +152,40 @@
         <theme name="vscrollbar" ref="vscrollbar"/>
         <param name="scrollbarsAlwaysVisible"><bool>false</bool></param>
         <param name="hasDragButton"><bool>false</bool></param>
+    </theme>
+    <theme name="scrollbutton-notch" ref="-defaults">
+        <param name="background"><image>scrollbar</image></param>
+    </theme>
+    <theme name="scrollbar-notch" ref="-defaults">
+        <param name="background"><image>scrollbarbg</image></param>
+        <theme name="leftbutton" ref="scrollbutton-notch">
+            <param name="minWidth"><int>6</int></param>
+        </theme>
+        <theme name="rightbutton" ref="scrollbutton-notch">
+            <param name="minWidth"><int>6</int></param>
+        </theme>
+        <theme name="upbutton" ref="scrollbutton-notch">
+            <param name="minHeight"><int>6</int></param>
+        </theme>
+        <theme name="downbutton" ref="scrollbutton-notch">
+            <param name="minHeight"><int>6</int></param>
+        </theme>
+        <theme name="thumb" ref="scrollbutton-notch">
+            <param name="minHeight"><int>6</int></param>
+            <param name="minWidth"><int>0</int></param>
+        </theme>
+        <param name="scaleThumb"><bool>true</bool></param>
+    </theme>
+    <theme name="scrollpane-notch" ref="scrollpane" allowWildcard="true">
+        <theme name="hscrollbar" ref="scrollbar-notch">
+        </theme>
+        <theme name="vscrollbar" ref="scrollbar-notch">
+        </theme>
+        <param name="scrollbarsAlwaysVisible"><bool>false</bool></param>
+        <param name="hasDragButton"><bool>false</bool></param>
+        <param name="background"><image>scrollwindow_tint</image></param>
+        <param name="border"><border>30,0</border></param>
+        <param name="overlay"><image>scrollwindow_shadow</image></param>
     </theme>
     <theme name="textarea" ref="-defaults" allowWildcard="true">
         <param name="background"><image>background</image></param>

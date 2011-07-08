@@ -247,17 +247,17 @@ public class ModAction implements Runnable {
      * Throws InvalidParameterException if the arguments provided do not match the method parameters, or are unassignable to those types.
      */
     @SuppressWarnings("rawtypes")
-	public ModAction setDefaultArguments(Object... Arguments)
+    public ModAction setDefaultArguments(Object... Arguments)
     {
-    	if(Arguments.length != params.length)
-    		throw new InvalidParameterException("Arguments do not match the parameters.");
-    	for (int i = 0; i < params.length; i++) {
-    		Class value = params[i];
-			if(!value.isInstance(Arguments[i]))
-				throw new InvalidParameterException("Arguments do not match the parameters.");
-		}
-    	defaultArguments = Arguments;
-    	return this;
+        if(Arguments.length != params.length)
+            throw new InvalidParameterException("Arguments do not match the parameters.");
+        for (int i = 0; i < params.length; i++) {
+            Class value = params[i];
+            if(!value.isInstance(Arguments[i]))
+                throw new InvalidParameterException("Arguments do not match the parameters.");
+        }
+        defaultArguments = Arguments;
+        return this;
     }
     
     /**
@@ -267,9 +267,9 @@ public class ModAction implements Runnable {
     @Override
     public void run()
     {
-    	if(defaultArguments == null)
-    		call();
-    	else
-    		call(defaultArguments);
+        if(defaultArguments == null)
+            call();
+        else
+            call(defaultArguments);
     }
 }

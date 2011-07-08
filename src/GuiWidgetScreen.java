@@ -61,7 +61,7 @@ public class GuiWidgetScreen extends Widget {
 	            instance.gui.applyTheme(instance.theme);
 	            
 	            
-	            instance.mcinstance = ModSettings.mcinst;
+	            instance.mcinstance = ModSettings.getMcinst();
 	            instance.screensize=new ScreenScaleProxy( instance.mcinstance.d, instance.mcinstance.e);
             
 			} catch (Throwable e) {

@@ -79,7 +79,7 @@ public class GuiModScreen extends da {
     {
         if (currentscreen != null)
         {
-            Minecraft m = ModSettings.mcinst;
+            Minecraft m = ModSettings.getMcinst();
             m.a(currentscreen.parentScreen);
             if (currentscreen.parentScreen instanceof GuiModScreen)
             {
@@ -99,7 +99,7 @@ public class GuiModScreen extends da {
      */
     public static void show(Widget screen)
     {
-        Minecraft m = ModSettings.mcinst;
+        Minecraft m = ModSettings.getMcinst();
         GuiModScreen scr = new GuiModScreen(currentscreen, screen);
         m.a(scr);
         scr.setActive();
@@ -115,7 +115,7 @@ public class GuiModScreen extends da {
     public static void show(GuiModScreen screen)
     {
         // screen.parentScreen = currentscreen; // >8|
-        Minecraft m = ModSettings.mcinst;
+        Minecraft m = ModSettings.getMcinst();
         m.a(screen);
         screen.setActive();
     }
@@ -126,7 +126,7 @@ public class GuiModScreen extends da {
      */
     public static void clicksound()
     {
-        Minecraft m = ModSettings.mcinst;
+        Minecraft m = ModSettings.getMcinst();
         m.B.a("random.click", 1.0F, 1.0F);
 
     }

@@ -43,9 +43,14 @@ public class ModSettings {
 	
 	public boolean have_loaded = false;
 	
-	public static final Minecraft mcinst = getMcinst();
+	private static Minecraft mcinst;
+	public static void presetMcint(Minecraft m)
+	{
+	    mcinst = m;
+	}
 	public static Minecraft getMcinst()
 	{
+	    if(mcinst != null) return mcinst;
         Field f;
 	    try {
 
@@ -55,7 +60,10 @@ public class ModSettings {
             Minecraft m = (Minecraft)f.get(null);
             
             if(m != null)
+            {
+                mcinst = m;
                 return m;
+            }
 	        
 	        f = Thread.class.getDeclaredField("target");
 	        f.setAccessible(true);
@@ -66,7 +74,12 @@ public class ModSettings {
 	        group.enumerate(threads);
 	        for (int i = 0; i < threads.length; i++)
 	          if (threads[i].getName().equals("Minecraft main thread")) {
-	            return (Minecraft)f.get(threads[i]);
+	            m = (Minecraft)f.get(threads[i]);
+	            if(m != null)
+	            {
+	                mcinst = m;
+	                return m;
+	            }
 	          }
 	      }
         catch (Throwable t)

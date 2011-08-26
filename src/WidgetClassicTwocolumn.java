@@ -1,71 +1,105 @@
-import de.matthiasmann.twl.Button;
+import java.util.ArrayList;
+
 import de.matthiasmann.twl.Widget;
 
-public class WidgetClassicTwocolumn extends Widget {
+
+public class WidgetClassicTwocolumn extends Widget
+{
     public int defaultwidth = 150;
     public int defaultheight = 20;
     public int defaultpad = 4;
-    public boolean overridewidth = true;
     public boolean overrideheight = true;
+    public int split = 10;
+    public int vpad = 0;
+    public ArrayList<Widget> heightOverrideExceptions = new ArrayList<Widget>();
     
     public WidgetClassicTwocolumn(Widget... ws)
     {
-        for(int i=0; i<ws.length; i++)
-            add(ws[i]); 
-        setTheme("");
-        //do stuff here?
+        for (int i = 0; i < ws.length; ++i)
+        {
+            this.add(ws[i]);
+        }
+        this.setTheme("");
     }
-    /*
-    public void add(Widget child)
-    {
-        String T=child.getTheme();
-        if (T.length() == 0)
-            child.setTheme("/-defaults");
-        else if(!T.substring(0, 1).equals("/"))
-            child.setTheme("/"+T);
-        super.add(child);
-    }*/
-    public int split = 10;
-    public int vpad = 0;
-    @Override
+    
     public void layout()
     {
-        if(getParent().getTheme().equals("scrollpane-notch")) vpad = 10;
-        for(int i=0; i<getNumChildren(); i++)
+        if (this.getParent().getTheme().equals("scrollpane-notch"))
         {
-            
-            Widget w = getChild(i);
-            int height = defaultheight;
-            if (!overrideheight)
+            this.vpad = 10;
+        }
+        int totalheight = vpad;
+        for (int i = 0; i < this.getNumChildren(); i += 2)
+        {
+            Widget w = this.getChild(i);
+            Widget w2 = null;
+            try
+            {
+                w2 = this.getChild(i + 1);
+            }
+            catch (IndexOutOfBoundsException e)
+            {
+                // do nothing, just means it's uneven.
+            }
+            int height = this.defaultheight;
+            if (!this.overrideheight || heightOverrideExceptions.contains(w))
             {
                 height = w.getPreferredHeight();
             }
-            int width = defaultwidth;
-            if(!overridewidth)
+            if (w2 != null)
             {
-                width = w.getPreferredWidth();
+                if (!this.overrideheight
+                        || heightOverrideExceptions.contains(w2))
+                {
+                    int temp = w2.getPreferredHeight();
+                    if (temp > height)
+                        height = temp;
+                }
             }
-            w.setSize(width,height);
-            
-            if(i % 2 == 0)
+            w.setSize(defaultwidth, height);
+            w.setPosition(this.getX() + this.getWidth() / 2
+                    - (150 + this.split / 2), this.getY() + totalheight);
+            if (w2 != null)
             {
-                w.setPosition(getX()+getWidth()/2 - (150+split/2), getY() + (defaultheight+defaultpad)  * (i >> 1) + vpad);
+                w2.setSize(defaultwidth, height);
+                w2.setPosition(this.getX() + this.getWidth() / 2 + this.split
+                        / 2, this.getY() + totalheight);
             }
-            else
-            {
-                w.setPosition( getX()+getWidth()/2 + (split/2), getY() + (defaultheight+defaultpad)  * (i >> 1) + vpad);
-            }
-            
+            totalheight += height + defaultpad;
         }
     }
     
     public int getPreferredWidth()
     {
-        return getParent().getWidth();
+        return this.getParent().getWidth();
     }
     
     public int getPreferredHeight()
     {
-        return (defaultheight+defaultpad) * (1 * (getNumChildren() + 1)>>1) + vpad*2;
+        int totalheight = vpad;
+        for (int i = 0; i < this.getNumChildren(); i += 2)
+        {
+            Widget w = this.getChild(i);
+            Widget w2 = null;
+            if (i + 1 != getNumChildren())
+                w2 = this.getChild(i + 1);
+            int height = this.defaultheight;
+            if (!this.overrideheight || heightOverrideExceptions.contains(w))
+            {
+                height = w.getPreferredHeight();
+            }
+            if (w2 != null)
+            {
+                if (!this.overrideheight
+                        || heightOverrideExceptions.contains(w2))
+                {
+                    int temp = w2.getPreferredHeight();
+                    if (temp > height)
+                        height = temp;
+                }
+            }
+            totalheight += height + defaultpad;
+        }
+        return totalheight;
     }
 }

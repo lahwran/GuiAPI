@@ -1,42 +1,53 @@
 import de.matthiasmann.twl.Widget;
+import net.minecraft.src.WidgetClassicTwocolumn;
 
 
-public class WidgetSinglecolumn extends WidgetClassicTwocolumn {
-    
+public class WidgetSinglecolumn extends WidgetClassicTwocolumn
+{
     public WidgetSinglecolumn(Widget... w)
     {
         super(w);
-        defaultwidth = 200;
+        this.defaultwidth = 200;
     }
     
-    @Override
     public void layout()
     {
-        for(int i=0; i<getNumChildren(); i++)
+        int totalheight = 0;
+        for (int i = 0; i < this.getNumChildren(); ++i)
         {
-            Widget w = getChild(i);
-            int height = defaultheight;
-            if (!overrideheight)
+            Widget w = this.getChild(i);
+            int height = this.defaultheight;
+            if (!this.overrideheight || heightOverrideExceptions.contains(w))
             {
                 height = w.getPreferredHeight();
             }
-            int width = defaultwidth;
-            if(!overridewidth)
-            {
-                width = w.getPreferredWidth();
-            }
-            w.setSize(width,height);
-            w.setPosition(getX()+getWidth()/2-w.getWidth()/2, getY() + 24 * i );
+            w.setSize(defaultwidth, height);
+            w.setPosition(this.getX() + this.getWidth() / 2 - w.getWidth() / 2,
+                    this.getY() + totalheight);
+            totalheight += height + defaultpad;
         }
     }
-
+    
     public int getPreferredWidth()
     {
-        return Math.max(getParent().getWidth(), defaultwidth);
+        return Math.max(this.getParent().getWidth(), this.defaultwidth);
     }
     
     public int getPreferredHeight()
     {
-        return 24 * getNumChildren() + 1;
+        int height = 1;
+        for (int i = 0; i < this.getNumChildren(); ++i)
+        {
+            Widget widget = this.getChild(i);
+            if (!heightOverrideExceptions.contains(widget))
+            {
+                height += defaultheight + defaultpad;
+            }
+            else
+            {
+                height += widget.getPreferredHeight() + defaultpad;
+            }
+        }
+        return height;
     }
 }

@@ -144,7 +144,7 @@ public class GuiWidgetScreen extends Widget
      * to be called only from GuiModScreen, sets the widget to display.
      * GuiModScreen manages this.
      * 
-     * @param w
+     * @param widget
      *            widget to display
      */
     public void setScreen(Widget widget)

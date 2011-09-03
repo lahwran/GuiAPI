@@ -16,6 +16,12 @@ import de.matthiasmann.twl.Widget;
  */
 public class mod_GuiApiIntermediateExample extends BaseMod
 {
+    /**
+     * This is a method designed to update the text area, depending on what kind of setting is passed. Please view the source code comments for more.
+     * 
+     * @param textArea The textarea to update.
+     * @param setting The setting to get info from. This particular method supports SettingInt, SettingFloat, and SettingText.
+     */
     private static void updateTextArea(TextArea textArea,
             @SuppressWarnings("rawtypes") Setting setting)
     {
@@ -54,18 +60,42 @@ public class mod_GuiApiIntermediateExample extends BaseMod
         GuiApiHelper.setTextAreaText(textArea, text);
     }
     
+    /** The mod screen. */
     public ModSettingScreen myModScreen;
+    
+    /** The settings. */
     public ModSettings mySettings;
-    SettingBoolean settingBooleanD;
-    SettingBoolean settingBooleanE;
-    SettingFloat settingFloatB;
-    SettingInt settingIntA;
-    SettingMulti settingMultiC;
-    SettingText settingTextF;
+    
+    /** The setting boolean d. */
+    public SettingBoolean settingBooleanD;
+    
+    /** The setting boolean e. */
+    public SettingBoolean settingBooleanE;
+    
+    /** The setting float b. */
+    public SettingFloat settingFloatB;
+    
+    /** The setting int a. */
+    public SettingInt settingIntA;
+    
+    /** The setting multi c. */
+    public SettingMulti settingMultiC;
+    
+    /** The setting text f. */
+    public SettingText settingTextF;
+    
+    /** The subscreen for booleans. */
     public WidgetSimplewindow subscreenBooleans;
+    
+    /** The subscreen for numberics. */
     public WidgetSimplewindow subscreenNumberics;
+    
+    /** The subscreen for others. */
     public WidgetSimplewindow subscreenOthers;
     
+    /**
+     * Instantiates a new mod_GuiApiIntermediateExample.
+     */
     public mod_GuiApiIntermediateExample()
     {
         // We need to set up our settings and modscreen, so let's do that.

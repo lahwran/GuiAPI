@@ -13,7 +13,9 @@ import de.matthiasmann.twl.renderer.lwjgl.RenderScale;
  * would use unsafe api (I still might change things.)
  * 
  * @author lahwran
- * @see show
+ * 
+ * @see GuiModScreen#show(GuiModScreen)
+ * @see GuiModScreen#show(Widget)
  */
 public class GuiModScreen extends GuiScreen
 {
@@ -94,9 +96,9 @@ public class GuiModScreen extends GuiScreen
      */
     public Widget mainwidget;
     /**
-     * Reference to parent screen, is used to go back()
+     * Reference to parent screen, is used by GuiModScreen#back()
      * 
-     * @see back()
+     * @see GuiModScreen#back()
      */
     public GuiScreen parentScreen;
     
@@ -107,6 +109,8 @@ public class GuiModScreen extends GuiScreen
      * 
      * @param screen
      *            parent screen
+     *            
+     * @see GuiModScreen#back()
      */
     protected GuiModScreen(GuiScreen screen)
     {

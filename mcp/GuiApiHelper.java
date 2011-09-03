@@ -285,9 +285,17 @@ public class GuiApiHelper
         return window;
     }
     
+    /** The button info. */
     private ArrayList<AbstractMap.SimpleEntry<String, ModAction>> buttonInfo_;
+    
+    /** The display text. */
     private String displayText_;
     
+    /**
+     * Instantiates a new gui api helper.
+     *
+     * @param displayText the display text
+     */
     private GuiApiHelper(String displayText)
     {
         displayText_ = displayText;

@@ -12,9 +12,14 @@ package net.minecraft.src;
  */
 public class mod_GuiApiBasicExample extends BaseMod
 {
+    /** The mod screen. */
     public ModSettingScreen myModScreen;
+    /** The settings. */
     public ModSettings mySettings;
     
+    /**
+     * Instantiates a new mod_GuiApiBasicExample.
+     */
     public mod_GuiApiBasicExample()
     {
         // First, create the settings class. The string in question is the
@@ -70,10 +75,12 @@ public class mod_GuiApiBasicExample extends BaseMod
         mySettings.load();
     }
     
-    // This is the method that will be called if you press the
-    // "Display Settings" button. It doesn't have to be public, so you can make
-    // this private and it will work. However, since we are calling this from a
-    // button, it needs to return void.
+    /**
+     * This is the method that will be called if you press the
+     * "Display Settings" button. It doesn't have to be public, so you can make
+     * this private and it will work. However, since we are calling this from a
+     * button, it needs to return void.
+     */
     public void ShowAllTheSettings()
     {
         StringBuilder displayTextBuilder = new StringBuilder();

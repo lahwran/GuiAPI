@@ -599,8 +599,6 @@ public class ModSettings
     /**
      * Get a list of all Multi settings for the current context.
      * 
-     * @param context
-     *            The context from which to copy from.
      * @return The list of settings.
      */
     public ArrayList<SettingMulti> getAllMultiSettings()

@@ -12,8 +12,11 @@ import de.matthiasmann.twl.Widget;
 public class WidgetSinglecolumn extends WidgetClassicTwocolumn
 {
     /**
-     * This creates the WidgetSinglecolumn with the specified Widgets. It chooses a default Width of 200.
-     * @param w The widgets to add.
+     * This creates the WidgetSinglecolumn with the specified Widgets. It
+     * chooses a default Width of 200.
+     * 
+     * @param widgets
+     *            The widgets to add.
      */
     public WidgetSinglecolumn(Widget... widgets)
     {

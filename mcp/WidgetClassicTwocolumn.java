@@ -29,11 +29,13 @@ public class WidgetClassicTwocolumn extends Widget
     public int defaultPadding = 4;
     /**
      * This is a map to override the heights of specific widgets. It is an
-     * override to overrideHeight. If you set the Integer as below 1, it will
-     * use what the widget wants as it's height. If you set anything else, it
-     * will use that height. Note that with TwoColumn widgets it will try and
-     * keep the height the same between two widgets opposite each other, so the
-     * one with the biggest height will override the other.
+     * override to overrideHeight. If you set the Integer as 0, it will use what
+     * the widget wants as it's height. If it is set negative, it will keep the
+     * positive part as the minimum size, but if the widget wants to grow it
+     * can. If you set anything else, it will use that height. Note that with
+     * TwoColumn widgets it will try and keep the height the same between two
+     * widgets opposite each other, so the one with the biggest height will
+     * override the other.
      */
     public Map<Widget, Integer> heightOverrideExceptions = new HashMap<Widget, Integer>();
     /**
@@ -83,11 +85,12 @@ public class WidgetClassicTwocolumn extends Widget
             if (heightOverrideExceptions.containsKey(w))
             {
                 Integer heightSet = heightOverrideExceptions.get(w);
-                if (heightSet == 0)
+                if (heightSet < 1)
                 {
                     height = w.getPreferredHeight();
                 }
-                else
+                heightSet = -heightSet;
+                if(heightSet != 0 && heightSet > height)
                 {
                     height = heightSet;
                 }
@@ -102,11 +105,12 @@ public class WidgetClassicTwocolumn extends Widget
                 if (heightOverrideExceptions.containsKey(w2))
                 {
                     Integer heightSet = heightOverrideExceptions.get(w2);
-                    if (heightSet == 0)
+                    if (heightSet < 1)
                     {
-                        height = w.getPreferredHeight();
+                        height = w2.getPreferredHeight();
                     }
-                    else
+                    heightSet = -heightSet;
+                    if(heightSet != 0 && heightSet > height)
                     {
                         height = heightSet;
                     }
@@ -155,11 +159,13 @@ public class WidgetClassicTwocolumn extends Widget
             if (heightOverrideExceptions.containsKey(w))
             {
                 Integer heightSet = heightOverrideExceptions.get(w);
-                if (heightSet == 0)
+                
+                if (heightSet < 1)
                 {
                     height = w.getPreferredHeight();
                 }
-                else
+                heightSet = -heightSet;
+                if(heightSet != 0 && heightSet > height)
                 {
                     height = heightSet;
                 }
@@ -174,11 +180,12 @@ public class WidgetClassicTwocolumn extends Widget
                 if (heightOverrideExceptions.containsKey(w2))
                 {
                     Integer heightSet = heightOverrideExceptions.get(w2);
-                    if (heightSet == 0)
+                    if (heightSet < 1)
                     {
-                        height = w.getPreferredHeight();
+                        height = w2.getPreferredHeight();
                     }
-                    else
+                    heightSet = -heightSet;
+                    if(heightSet != 0 && heightSet > height)
                     {
                         height = heightSet;
                     }

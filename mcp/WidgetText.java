@@ -55,7 +55,7 @@ public class WidgetText extends WidgetSetting implements StringModel
         settingReference.displayWidget = this;
         editField = new EditField();
         add(editField);
-        if (title == null)
+        if (title != null)
         {
             displayLabel = new Label();
             displayLabel.setText(String.format("%s: ", niceName));

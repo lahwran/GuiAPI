@@ -39,11 +39,12 @@ public class WidgetSinglecolumn extends WidgetClassicTwocolumn
             if (heightOverrideExceptions.containsKey(widget))
             {
                 Integer heightSet = heightOverrideExceptions.get(widget);
-                if (heightSet == 0)
+                if (heightSet < 1)
                 {
                     height = widget.getPreferredHeight();
                 }
-                else
+                heightSet = -heightSet;
+                if(heightSet != 0 && heightSet > height)
                 {
                     height = heightSet;
                 }
@@ -74,11 +75,12 @@ public class WidgetSinglecolumn extends WidgetClassicTwocolumn
             if (heightOverrideExceptions.containsKey(w))
             {
                 Integer heightSet = heightOverrideExceptions.get(w);
-                if (heightSet == 0)
+                if (heightSet < 1)
                 {
                     height = w.getPreferredHeight();
                 }
-                else
+                heightSet = -heightSet;
+                if(heightSet != 0 && heightSet > height)
                 {
                     height = heightSet;
                 }

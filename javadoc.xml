@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project default="javadoc">
+    <target name="javadoc">
+        <javadoc access="private" author="true" classpath="G:\MineCraft\MCP\MCP43\jars\bin\jinput.jar;G:\MineCraft\MCP\MCP43\jars\bin\lwjgl_util.jar;G:\MineCraft\MCP\MCP43\jars\bin\minecraft.jar;G:\MineCraft\MCP\MCP43\jars\bin\lwjgl.jar" destdir="G:\MineCraft\GitHub\GuiAPI\doc" nodeprecated="false" nodeprecatedlist="false" noindex="false" nonavbar="false" notree="false" source="1.6" sourcefiles="G:\MineCraft\MCP\MCP43\src\minecraft\net\minecraft\src\GuiApiHelper.java" sourcepath="G:\MineCraft\MCP\MCP43\src\minecraft;G:\MineCraft\MCP\MCP43\conf\patches" splitindex="true" use="true" version="true"/>
+    </target>
+</project>

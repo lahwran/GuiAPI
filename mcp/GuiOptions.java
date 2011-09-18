@@ -4,22 +4,18 @@ import net.minecraft.src.EnumOptions;
 import net.minecraft.src.GameSettings;
 import net.minecraft.src.GuiButton;
 import net.minecraft.src.GuiControls;
-import net.minecraft.src.GuiModScreen;
-import net.minecraft.src.GuiModSelect;
 import net.minecraft.src.GuiScreen;
 import net.minecraft.src.GuiSlider;
 import net.minecraft.src.GuiSmallButton;
 import net.minecraft.src.GuiVideoSettings;
-import net.minecraft.src.ModSettingScreen;
 import net.minecraft.src.StringTranslate;
-import net.minecraft.src.WidgetSetting;
 
 public class GuiOptions extends GuiScreen {
 
    private GuiScreen parentScreen;
    protected String screenTitle = "Options";
    private GameSettings options;
-   private static EnumOptions[] field_22135_k = new EnumOptions[]{EnumOptions.MUSIC, EnumOptions.SOUND, EnumOptions.INVERT_MOUSE, EnumOptions.SENSITIVITY, EnumOptions.DIFFICULTY};
+   private static EnumOptions[] relevantOptions = new EnumOptions[]{EnumOptions.MUSIC, EnumOptions.SOUND, EnumOptions.INVERT_MOUSE, EnumOptions.SENSITIVITY, EnumOptions.FOV, EnumOptions.DIFFICULTY};
 
 
    public GuiOptions(GuiScreen var1, GameSettings var2) {
@@ -31,7 +27,7 @@ public class GuiOptions extends GuiScreen {
       StringTranslate var1 = StringTranslate.getInstance();
       this.screenTitle = var1.translateKey("options.title");
       int var2 = 0;
-      EnumOptions[] var3 = field_22135_k;
+      EnumOptions[] var3 = relevantOptions;
       int var4 = var3.length;
 
       for(int var5 = 0; var5 < var4; ++var5) {
@@ -74,12 +70,11 @@ public class GuiOptions extends GuiScreen {
          }
 
          if(var1.id == 300) {
-            this.mc.gameSettings.saveOptions();
-            ModSettingScreen.guiContext = "";
-            WidgetSetting.updateAll();
-            GuiModScreen.show((GuiModScreen)(new GuiModSelect(this)));
-         }
-
+             this.mc.gameSettings.saveOptions();
+             ModSettingScreen.guiContext = "";
+             WidgetSetting.updateAll();
+             GuiModScreen.show((GuiModScreen)(new GuiModSelect(this)));
+          }
       }
    }
 
@@ -88,4 +83,5 @@ public class GuiOptions extends GuiScreen {
       this.drawCenteredString(this.fontRenderer, this.screenTitle, this.width / 2, 20, 16777215);
       super.drawScreen(var1, var2, var3);
    }
+
 }

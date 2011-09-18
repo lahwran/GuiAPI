@@ -8,7 +8,6 @@ package net.minecraft.src;
  */
 public class GuiModSelect extends GuiModScreen
 {
-    @SuppressWarnings("unused")
     private static void selectScreen(Integer i)
     {
         GuiModScreen.show(ModSettingScreen.modScreens.get(i).theWidget);

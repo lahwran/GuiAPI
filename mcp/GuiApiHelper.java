@@ -32,9 +32,9 @@ public class GuiApiHelper
     static
     {
         backModAction = new ModAction(GuiModScreen.class, "back");
-        GuiApiHelper.backModAction.nameRef = "Helper Back ModAction";
+        GuiApiHelper.backModAction.setTag("Helper Back ModAction");
         clickModAction = new ModAction(GuiModScreen.class, "clicksound");
-        GuiApiHelper.clickModAction.nameRef = "Helper ClickSound ModAction";
+        GuiApiHelper.clickModAction.setTag("Helper ClickSound ModAction");
     }
     
     /**
@@ -320,7 +320,7 @@ public class GuiApiHelper
         if (mergeBack)
         {
             buttonAction = buttonAction.mergeAction(GuiApiHelper.backModAction);
-            buttonAction.nameRef = "Button '" + text + "' with back.";
+            buttonAction.setTag("Button '" + text + "' with back.");
         }
         buttonInfo_.add(new AbstractMap.SimpleEntry<String, ModAction>(text,
                 buttonAction));

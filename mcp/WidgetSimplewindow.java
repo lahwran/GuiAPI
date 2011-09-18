@@ -126,7 +126,7 @@ public class WidgetSimplewindow extends Widget
         if (showBack)
         {
             backButton = new Button(new SimpleButtonModel());
-            backButton.getModel().addActionCallback(GuiApiHelper.backModAction);
+            backButton.getModel().addActionCallback(GuiApiHelper.backModAction.mergeAction(GuiApiHelper.clickModAction));
             backButton.setText("Back");
             buttonBar = new WidgetSingleRow(200, 20, backButton);
             add(buttonBar);

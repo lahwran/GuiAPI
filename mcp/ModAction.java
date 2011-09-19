@@ -289,7 +289,7 @@ public class ModAction implements Runnable, PropertyChangeListener
      * 
      * @param name The tag to assign to this ModAction.
      */
-    public void setTag(String tag)
+    public void setTag(Object tag)
     {
         this.tag = tag;
     }

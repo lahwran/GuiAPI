@@ -1,7 +1,7 @@
 GuiAPI
 ======
 
-GuiAPI uses the TWL library from Matthias Mann, see [[http://twl.l33tlabs.org/|twl.l33tlabs.org]]
+GuiAPI uses the TWL library from Matthias Mann, see http://twl.l33tlabs.org/
 
 Building
 --------

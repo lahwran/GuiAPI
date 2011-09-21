@@ -159,12 +159,12 @@ public class ModAction implements Runnable, PropertyChangeListener
                 .getClass());
         while (true)
         {
+        	if (currentclass == null)
+            {
+                throw new RuntimeException("Unable to locate method '" + method + "' anywhere in the inheritance chain of the given class!");
+            }
             try
             {
-                if (currentclass == null)
-                {
-                    return null;
-                }
                 Method returnval = currentclass.getDeclaredMethod(method,
                         methodParams);
                 if (returnval != null)

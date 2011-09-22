@@ -90,15 +90,15 @@ public class mod_GuiApiBasicExample extends BaseMod
         // context, or a per world context. By default, the context will not
         // change, but you can specify specific ones if you want). You can
         // specify one as an argument if you want as well.
-        displayTextBuilder.append(mySettings.getIntSetting("backendIntA"));
+        displayTextBuilder.append(mySettings.getIntSettingValue("backendIntA"));
         displayTextBuilder.append("\r\n\r\n");
         displayTextBuilder.append("Float B: ");
         // Now Float B.
-        displayTextBuilder.append(mySettings.getFloatSetting("backendFloatB"));
+        displayTextBuilder.append(mySettings.getFloatSettingValue("backendFloatB"));
         displayTextBuilder.append("\r\n\r\n");
         displayTextBuilder.append("Multi C: ");
         // Now Multi C, as an int which you can use in your code.
-        displayTextBuilder.append(mySettings.getMultiSetting("backendMultiC"));
+        displayTextBuilder.append(mySettings.getMultiSettingValue("backendMultiC"));
         displayTextBuilder.append("\r\n\r\n");
         displayTextBuilder.append("Multi C (Displayed): ");
         // Now Multi C, as the displayed string on the menu.
@@ -108,17 +108,17 @@ public class mod_GuiApiBasicExample extends BaseMod
         displayTextBuilder.append("Boolean D: ");
         // Now Boolean D.
         displayTextBuilder.append(mySettings
-                .getBooleanSetting("backendBooleanD"));
+                .getBooleanSettingValue("backendBooleanD"));
         displayTextBuilder.append("\r\n\r\n");
         displayTextBuilder.append("Boolean E: ");
         // Now Boolean E. Note that it is not any different whether you
         // specified display names or not.
         displayTextBuilder.append(mySettings
-                .getBooleanSetting("backendBooleanE"));
+                .getBooleanSettingValue("backendBooleanE"));
         displayTextBuilder.append("\r\n\r\n");
         displayTextBuilder.append("Text F: ");
         // Now String F.
-        displayTextBuilder.append(mySettings.getTextSetting("backendTextF"));
+        displayTextBuilder.append(mySettings.getTextSettingValue("backendTextF"));
         // Display your menu. It will have a title bar that says 'My Current
         // Settings', will use all the text you just created using the
         // StringBuilder and the settings helpers in a long textbox, and at the

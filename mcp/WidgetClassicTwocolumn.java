@@ -20,7 +20,7 @@ public class WidgetClassicTwocolumn extends Widget
      */
     public int childDefaultHeight = 20;
     /**
-     * This dictates the width to set each of the widgets to.
+     * This is the default height to enforce for widgets.
      */
     public int childWidth = 150;
     /**
@@ -38,6 +38,17 @@ public class WidgetClassicTwocolumn extends Widget
      * override the other.
      */
     public Map<Widget, Integer> heightOverrideExceptions = new HashMap<Widget, Integer>();
+    /**
+     * This is a map to override the width of specific widgets. It is an
+     * override to childWidth. If you set the Integer as 0, it will use what
+     * the widget wants as it's width. If it is set negative, it will keep the
+     * positive part as the minimum size, but if the widget wants to grow it
+     * can. If you set anything else, it will use that width. Note that with
+     * TwoColumn widgets it will try and keep the width the same between two
+     * widgets opposite each other, so the one with the biggest width will
+     * override the other.
+     */
+    public Map<Widget, Integer> widthOverrideExceptions = new HashMap<Widget, Integer>();
     /**
      * This says whether it should override the height for all widgets.
      */
@@ -88,11 +99,15 @@ public class WidgetClassicTwocolumn extends Widget
                 if (heightSet < 1)
                 {
                     height = w.getPreferredHeight();
+                    heightSet = -heightSet;
+                    if(heightSet != 0 && heightSet > height)
+                    {
+                        height = heightSet;
+                    }
                 }
-                heightSet = -heightSet;
-                if(heightSet != 0 && heightSet > height)
+                else
                 {
-                    height = heightSet;
+                	height = heightSet;
                 }
             }
             if (w2 != null)
@@ -107,12 +122,16 @@ public class WidgetClassicTwocolumn extends Widget
                     Integer heightSet = heightOverrideExceptions.get(w2);
                     if (heightSet < 1)
                     {
-                        height = w2.getPreferredHeight();
+                        height = w.getPreferredHeight();
+                        heightSet = -heightSet;
+                        if(heightSet != 0 && heightSet > height)
+                        {
+                            height = heightSet;
+                        }
                     }
-                    heightSet = -heightSet;
-                    if(heightSet != 0 && heightSet > height)
+                    else
                     {
-                        height = heightSet;
+                    	height = heightSet;
                     }
                 }
                 if (temp > height)
@@ -152,6 +171,7 @@ public class WidgetClassicTwocolumn extends Widget
                 // do nothing, just means it's uneven.
             }
             int height = childDefaultHeight;
+            int width = childWidth;
             if (!overrideHeight)
             {
                 height = w.getPreferredHeight();
@@ -163,44 +183,93 @@ public class WidgetClassicTwocolumn extends Widget
                 if (heightSet < 1)
                 {
                     height = w.getPreferredHeight();
-                }
-                heightSet = -heightSet;
-                if(heightSet != 0 && heightSet > height)
-                {
-                    height = heightSet;
-                }
-            }
-            if (w2 != null)
-            {
-                int temp = height;
-                if (!overrideHeight)
-                {
-                    temp = w2.getPreferredHeight();
-                }
-                if (heightOverrideExceptions.containsKey(w2))
-                {
-                    Integer heightSet = heightOverrideExceptions.get(w2);
-                    if (heightSet < 1)
-                    {
-                        height = w2.getPreferredHeight();
-                    }
                     heightSet = -heightSet;
                     if(heightSet != 0 && heightSet > height)
                     {
                         height = heightSet;
                     }
                 }
-                if (temp > height)
+                else
                 {
-                    height = temp;
+                	height = heightSet;
                 }
             }
-            w.setSize(childWidth, height);
-            w.setPosition(getX() + getWidth() / 2
-                    - (childWidth + splitDistance / 2), getY() + totalheight);
+            if (widthOverrideExceptions.containsKey(w))
+            {
+                Integer widthSet = widthOverrideExceptions.get(w);
+                
+                if (widthSet < 1)
+                {
+                	width = w.getPreferredWidth();
+                	widthSet = -widthSet;
+                    if(widthSet != 0 && widthSet > width)
+                    {
+                    	width = widthSet;
+                    }
+                }
+                else
+                {
+                	width = widthSet;
+                }
+            }
             if (w2 != null)
             {
-                w2.setSize(childWidth, height);
+                int temph = height;
+                int tempw = width;
+                if (!overrideHeight)
+                {
+                	temph = w2.getPreferredHeight();
+                }
+                if (heightOverrideExceptions.containsKey(w2))
+                {
+                    Integer heightSet = heightOverrideExceptions.get(w2);
+                    if (heightSet < 1)
+                    {
+                        height = w.getPreferredHeight();
+                        heightSet = -heightSet;
+                        if(heightSet != 0 && heightSet > height)
+                        {
+                            height = heightSet;
+                        }
+                    }
+                    else
+                    {
+                    	height = heightSet;
+                    }
+                }
+                if (widthOverrideExceptions.containsKey(w2))
+                {
+                    Integer widthSet = widthOverrideExceptions.get(w2);
+                    
+                    if (widthSet < 1)
+                    {
+                    	width = w2.getPreferredWidth();
+                    	widthSet = -widthSet;
+                        if(widthSet != 0 && widthSet > width)
+                        {
+                        	width = widthSet;
+                        }
+                    }
+                    else
+                    {
+                    	width = widthSet;
+                    }
+                }
+                if (temph > height)
+                {
+                    height = temph;
+                }
+                if (tempw > width)
+                {
+                	width = tempw;
+                }
+            }
+            w.setSize(width, height);
+            w.setPosition(getX() + getWidth() / 2
+                    - (width + splitDistance / 2), getY() + totalheight);
+            if (w2 != null)
+            {
+                w2.setSize(width, height);
                 w2.setPosition(getX() + getWidth() / 2 + splitDistance / 2,
                         getY() + totalheight);
             }

@@ -6,6 +6,8 @@ import java.lang.reflect.Method;
 import java.security.InvalidParameterException;
 import java.util.ArrayList;
 
+import de.matthiasmann.twl.TextArea;
+
 /**
  * This class is a helper designed to make it easier to use callbacks. It
  * implements Runnable and PropertyChangeListener, and you can use it in several
@@ -15,7 +17,8 @@ import java.util.ArrayList;
  * @author ShaRose
  */
 @SuppressWarnings("rawtypes")
-public class ModAction implements Runnable, PropertyChangeListener {
+public class ModAction implements Runnable, PropertyChangeListener,
+		TextArea.Callback {
 	@SuppressWarnings("unchecked")
 	private static Boolean checkArguments(Class[] classTypes, Object[] arguments) {
 		if (classTypes.length != arguments.length) {
@@ -129,7 +132,8 @@ public class ModAction implements Runnable, PropertyChangeListener {
 		}
 	}
 
-	private Method getMethodRecursively(Object o, String method) throws Exception {
+	private Method getMethodRecursively(Object o, String method)
+			throws Exception {
 		Class<?> currentclass = (o instanceof Class ? (Class<?>) o : o
 				.getClass());
 		while (true) {
@@ -159,6 +163,23 @@ public class ModAction implements Runnable, PropertyChangeListener {
 	 */
 	public Object getTag() {
 		return tag;
+	}
+
+	@Override
+	public void handleLinkClicked(String link) {
+		if ((methodParams.length != 1) || (methodParams[0] != String.class)) {
+			throw new RuntimeException(
+					"invalid method parameters for a TextArea.Callback callback. Modaction is '"
+							+ getTag() + "'.");
+		}
+		try {
+			call(link);
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw new RuntimeException(
+					"Error when calling TextArea.Callback callback. Modaction is '"
+							+ getTag() + "'.", e);
+		}
 	}
 
 	/**

@@ -33,11 +33,11 @@
         <area name="button-border-hover" xywh="0,86,200,20" splity="T2,B3" splitx="L2,R2" nocenter="true"/>
         <area name="button-bg-hover" xywh="2,88,196,15" tiled="true"/>
         <select name="button-bg">
-            <alias ref="button-bg-hover" if="hover"/>
+            <alias ref="button-bg-hover" if="hover + !disabled"/>
             <alias ref="button-bg-normal"/>
         </select>
         <select name="button-border-nonpressed">
-            <alias ref="button-border-hover" if="hover"/>
+            <alias ref="button-border-hover" if="hover + !disabled"/>
             <alias ref="button-border-normal"/>
         </select>
         <select name="button-border">
@@ -59,6 +59,8 @@
             <alias ref="button-bg-normal"/>
             <alias ref="button-border-normal"/>
         </composed>
+        <alias name="progress" ref="button-bg-normal" sizeOverwriteH="0"/>
+        <area name="progress-white" xywh="0,106,196,15" tiled="true"/>
     </images>
     <images file="scrollwindow.png">
         <area name="scrollwindow_tint" xywh="75,80,1,1"/>
@@ -194,30 +196,75 @@
         <theme name="colorarea2d" ref="-defaults">
             <param name="cursor"><image>none</image></param>
             <param name="background"><image>button</image></param>
+            <param name="minWidth"><int>64</int></param>
+            <param name="minHeight"><int>64</int></param>
+            <param name="border"><border>2</border></param>
         </theme>
         <theme name="colorarea1d" ref="-defaults">
             <param name="cursor"><image>none</image></param>
             <param name="background"><image>button</image></param>
+            <param name="minHeight"><int>64</int></param>
+            <param name="minWidth"><int>32</int></param>
         </theme>
-        <param name="smallGap"><dimension>0,0</dimension></param>
-        <param name="mediumGap"><dimension>0,0</dimension></param>
-        <param name="largeGap"><dimension>0,0</dimension></param>
-        <param name="defaultGap"><dimension>15,0</dimension></param>
+        <param name="smallGap"><dimension>8,8</dimension></param>
+        <param name="mediumGap"><dimension>10,10</dimension></param>
+        <param name="largeGap"><dimension>15,15</dimension></param>
+        <param name="defaultGap"><dimension>5,5</dimension></param>
         <param name="namedGaps">
             <map>
             </map>
         </param>
         <theme name="preview" ref="-defaults">
-            <theme name="colorarea" ref="-defaults"/>
+            <theme name="colorarea" ref="-defaults">
+                <param name="background"><image>progress-white</image></param>
+            </theme>
+            <param name="minWidth"><int>32</int></param>
+            <param name="minHeight"><int>64</int></param>
+            <param name="border"><border>2</border></param>
         </theme>
-        <theme name="hexColorEditField" ref="editfield"/>
+        <theme name="hexColorEditField" ref="editfield">
+            <param name="tooltip"><string>Current color in ARGB hex format</string></param>
+        </theme>
         <theme name="previewLabel" ref="label"/>
+        <param name="background"><image>background</image></param>
     </theme>
     <theme name="tooltipwindow" ref="-defaults">
         <param name="fadeInTime"><int>50</int></param>
     </theme>
     <theme name="listbox" ref="-defaults">
-        <theme name="display" ref="-defaults"/>
+        <theme name="display" ref="-defaults">
+            <param name="background"><image>button</image></param>
+        </theme>
     </theme>
+    <theme name="listbox-noback" ref="-defaults">
+        <theme name="display" ref="-defaults">
+        </theme>
+    </theme>
+    <theme name="progressbar" ref="-defaults">
+        <param name="background"><image>background</image></param>
+        <param name="progressImage"><image>progress</image></param>
+        <param name="overlay"><image>button-border</image></param>
+    </theme>
+    <theme name="progressbar-white" ref="-defaults">
+        <param name="background"><image>background</image></param>
+        <param name="progressImage"><image>progress-white</image></param>
+        <param name="overlay"><image>button-border</image></param>
+    </theme>
+    <theme name="progressbar-noback" ref="-defaults">
+        <param name="background"><image>none</image></param>
+        <param name="progressImage"><image>progress</image></param>
+        <param name="overlay"><image>button-border</image></param>
+    </theme>
+    <theme name="progressbar-white-noback" ref="-defaults">
+        <param name="background"><image>none</image></param>
+        <param name="progressImage"><image>progress-white</image></param>
+        <param name="overlay"><image>button-border</image></param>
+    </theme>
+    <theme name="combobox" ref="-defaults">
+        <theme name="display" ref="-defaults">
+            <param name="background"><image>background</image></param>
+        </theme>
+    </theme>
+    <theme name="comboboxPopup" ref="-defaults"/>
 
 </themes>

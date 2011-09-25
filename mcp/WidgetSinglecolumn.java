@@ -42,11 +42,15 @@ public class WidgetSinglecolumn extends WidgetClassicTwocolumn
                 if (heightSet < 1)
                 {
                     height = widget.getPreferredHeight();
+                    heightSet = -heightSet;
+                    if(heightSet != 0 && heightSet > height)
+                    {
+                        height = heightSet;
+                    }
                 }
-                heightSet = -heightSet;
-                if(heightSet != 0 && heightSet > height)
+                else
                 {
-                    height = heightSet;
+                	height = heightSet;
                 }
             }
             totalheight += height + defaultPadding;
@@ -57,7 +61,9 @@ public class WidgetSinglecolumn extends WidgetClassicTwocolumn
     @Override
     public int getPreferredWidth()
     {
-        return Math.max(getParent().getWidth(), childWidth);
+    	// I can't see why we do a check here and not on TwoColoumn, and I don't really want to loop widthOverrideExceptions, so let's just remove this particular check, mmkay?
+        //return Math.max(getParent().getWidth(), childWidth);
+    	return getParent().getWidth(); 
     }
     
     @Override
@@ -68,6 +74,7 @@ public class WidgetSinglecolumn extends WidgetClassicTwocolumn
         {
             Widget w = getChild(i);
             int height = childDefaultHeight;
+            int width = childWidth;
             if (!overrideHeight)
             {
                 height = w.getPreferredHeight();
@@ -78,15 +85,37 @@ public class WidgetSinglecolumn extends WidgetClassicTwocolumn
                 if (heightSet < 1)
                 {
                     height = w.getPreferredHeight();
+                    heightSet = -heightSet;
+                    if(heightSet != 0 && heightSet > height)
+                    {
+                        height = heightSet;
+                    }
                 }
-                heightSet = -heightSet;
-                if(heightSet != 0 && heightSet > height)
+                else
                 {
-                    height = heightSet;
+                	height = heightSet;
                 }
             }
-            w.setSize(childWidth, height);
-            w.setPosition(getX() + getWidth() / 2 - w.getWidth() / 2, getY()
+            if (widthOverrideExceptions.containsKey(w))
+            {
+                Integer widthSet = widthOverrideExceptions.get(w);
+                
+                if (widthSet < 1)
+                {
+                	width = w.getPreferredWidth();
+                	widthSet = -widthSet;
+                    if(widthSet != 0 && widthSet > width)
+                    {
+                    	width = widthSet;
+                    }
+                }
+                else
+                {
+                	width = widthSet;
+                }
+            }
+            w.setSize(width, height);
+            w.setPosition(getX() + getWidth() / 2 - width / 2, getY()
                     + totalheight);
             totalheight += height + defaultPadding;
         }

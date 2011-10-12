@@ -6,6 +6,9 @@ import java.lang.reflect.Method;
 import java.security.InvalidParameterException;
 import java.util.ArrayList;
 
+import de.matthiasmann.twl.CallbackWithReason;
+import de.matthiasmann.twl.ListBox;
+import de.matthiasmann.twl.ListBox.CallbackReason;
 import de.matthiasmann.twl.TextArea;
 
 /**
@@ -18,7 +21,7 @@ import de.matthiasmann.twl.TextArea;
  */
 @SuppressWarnings("rawtypes")
 public class ModAction implements Runnable, PropertyChangeListener,
-		TextArea.Callback {
+		TextArea.Callback, CallbackWithReason<ListBox.CallbackReason> {
 	@SuppressWarnings("unchecked")
 	private static Boolean checkArguments(Class[] classTypes, Object[] arguments) {
 		if (classTypes.length != arguments.length) {
@@ -114,6 +117,24 @@ public class ModAction implements Runnable, PropertyChangeListener,
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new Exception("error calling callback '" + getTag() + "'.", e);
+		}
+	}
+
+	@Override
+	public void callback(CallbackReason reason) {
+		if ((methodParams.length != 1)
+				|| (methodParams[0] != CallbackReason.class)) {
+			throw new RuntimeException(
+					"invalid method parameters for a CallbackWithReason<ListBox.CallbackReason> callback. Modaction is '"
+							+ getTag() + "'.");
+		}
+		try {
+			call(reason);
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw new RuntimeException(
+					"Error when calling CallbackWithReason<ListBox.CallbackReason> callback. Modaction is '"
+							+ getTag() + "'.", e);
 		}
 	}
 

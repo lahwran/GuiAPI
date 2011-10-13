@@ -36,6 +36,16 @@ public class GuiWidgetScreen extends Widget {
 		if (GuiWidgetScreen.instance != null) {
 			return GuiWidgetScreen.instance;
 		}
+
+		String GuiAPILoc = GuiWidgetScreen.class.getProtectionDomain()
+				.getCodeSource().getLocation().toString();
+		String MinecraftLoc = MinecraftImpl.class.getProtectionDomain() // normally I would just use Minecraft.class, but with a mod that edits it it might have issues. But nobody is going to ever need or want to edit MinecraftImpl.class.
+				.getCodeSource().getLocation().toString();
+
+		if (!GuiAPILoc.equals(MinecraftLoc)) {
+			throw new RuntimeException(
+					"GuiAPI has detected that it was not installed directly into the minecraft jar as required. If you are trying to use a mod manager such as MyCraft, or you are trying to use Modloader's mods folder, this would cause this issue. Please install directly into the minecraft jar in order for GuiAPI to work correctly.");
+		}
 		try {
 			GuiWidgetScreen.instance = new GuiWidgetScreen();
 			GuiWidgetScreen.instance.renderer = new LWJGLRenderer();

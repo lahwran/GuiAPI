@@ -154,6 +154,8 @@
         <theme name="vscrollbar" ref="vscrollbar"/>
         <param name="scrollbarsAlwaysVisible"><bool>false</bool></param>
         <param name="hasDragButton"><bool>false</bool></param>
+        <param name="autoScrollArea"><int>0</int></param>
+        <param name="autoScrollSpeed"><int>0</int></param>
     </theme>
     <theme name="scrollbutton-notch" ref="-defaults">
         <param name="background"><image>scrollbar</image></param>
@@ -191,6 +193,14 @@
     </theme>
     <theme name="textarea" ref="-defaults" allowWildcard="true">
         <param name="background"><image>background</image></param>
+        <param name="fonts">
+            <map>
+            </map>
+        </param>
+        <param name="images">
+            <map>
+            </map>
+        </param>
     </theme>
     <theme name="colorselector" ref="-defaults" allowWildcard="true">
         <theme name="colorarea2d" ref="-defaults">
@@ -226,7 +236,6 @@
             <param name="tooltip"><string>Current color in ARGB hex format</string></param>
         </theme>
         <theme name="previewLabel" ref="label"/>
-        <param name="background"><image>background</image></param>
     </theme>
     <theme name="tooltipwindow" ref="-defaults">
         <param name="fadeInTime"><int>50</int></param>

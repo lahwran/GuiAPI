@@ -1,24 +1,27 @@
 package net.minecraft.src;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.util.Properties;
+import java.util.ArrayList;
+import java.util.Iterator;
 
-/**
- * This is the Setting type for a list of strings. It uses the Properties class
- * for ease of use. The widget is NOT complete yet since there's no theme for
- * ListBox.
- * 
- * @author ShaRose
- */
-public class SettingList extends Setting<Properties> {
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
+
+public class SettingList extends Setting<ArrayList<String>> {
 
 	public SettingList(String title) {
-		this(title, new Properties());
+		this(title, new ArrayList<String>());
 	}
 
-	public SettingList(String title, Properties defaultvalue) {
+	public SettingList(String title, ArrayList<String> defaultvalue) {
 		backendName = title;
 		defaultValue = defaultvalue;
 		values.put("", defaultvalue);
@@ -26,21 +29,37 @@ public class SettingList extends Setting<Properties> {
 
 	@Override
 	public void fromString(String s, String context) {
-		Properties prop = new Properties();
+		ArrayList<String> list = new ArrayList<String>();
 		try {
-			prop.loadFromXML(new ByteArrayInputStream(s.getBytes("UTF-8")));
+
+			DocumentBuilderFactory builderFact = DocumentBuilderFactory
+					.newInstance();
+			builderFact.setIgnoringElementContentWhitespace(true);
+			builderFact.setValidating(true);
+			builderFact.setCoalescing(true);
+			builderFact.setIgnoringComments(true);
+			DocumentBuilder docBuilder = builderFact.newDocumentBuilder();
+			Document doc = docBuilder.parse(s);
+
+			Element localElement = (Element) doc.getChildNodes().item(1);
+
+			NodeList localNodeList = localElement.getChildNodes();
+
+			for (int i = 0; i < localNodeList.getLength(); i++) {
+				String val = localNodeList.item(i).getNodeValue();
+				list.add(val);
+			}
+			values.put(context, list);
+			if (displayWidget != null) {
+				displayWidget.update();
+			}
 		} catch (Throwable e) {
-			ModSettings.dbgout("Error reading SettingList from context '"
-					+ context + "': " + e);
-		}
-		values.put(context, prop);
-		if (displayWidget != null) {
-			displayWidget.update();
+
 		}
 	}
 
 	@Override
-	public Properties get(String context) {
+	public ArrayList<String> get(String context) {
 		if (values.get(context) != null) {
 			return values.get(context);
 		} else if (values.get("") != null) {
@@ -51,7 +70,7 @@ public class SettingList extends Setting<Properties> {
 	}
 
 	@Override
-	public void set(Properties v, String context) {
+	public void set(ArrayList<String> v, String context) {
 		values.put(context, v);
 		if (parent != null) {
 			parent.save(context);
@@ -64,15 +83,36 @@ public class SettingList extends Setting<Properties> {
 	@Override
 	public String toString(String context) {
 		try {
-			Properties prop = get(context);
+			DocumentBuilder docBuilder = DocumentBuilderFactory.newInstance()
+					.newDocumentBuilder();
+			Document doc = docBuilder.newDocument();
+			Element baseElement = (Element) doc.appendChild(doc
+					.createElement("list"));
+			ArrayList<String> prop = get(context);
+			synchronized (prop) {
+				Iterator<String> localIterator = prop.iterator();
+				while (localIterator.hasNext()) {
+					String str = localIterator.next();
+					baseElement.appendChild(doc.createTextNode(str));
+				}
+			}
+
+			TransformerFactory localTransformerFactory = TransformerFactory
+					.newInstance();
+			Transformer localTransformer = null;
+			localTransformer = localTransformerFactory.newTransformer();
+			localTransformer.setOutputProperty("method", "xml");
+			localTransformer.setOutputProperty("encoding", "UTF8");
+			DOMSource localDOMSource = new DOMSource(doc);
 			ByteArrayOutputStream output = new ByteArrayOutputStream();
-			prop.storeToXML(output, "GuiAPI SettingList: DO NOT EDIT.");
+			StreamResult localStreamResult = new StreamResult(output);
+			localTransformer.transform(localDOMSource, localStreamResult);
+
 			return output.toString("UTF-8");
-		} catch (IOException e) {
+		} catch (Throwable e) {
 			ModSettings.dbgout("Error writing SettingList from context '"
 					+ context + "': " + e);
 			return "";
 		}
 	}
-
 }

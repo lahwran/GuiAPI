@@ -382,6 +382,25 @@ public class ModSettings {
 		append(s);
 		return s;
 	}
+	
+	/**
+	 * convenience list setting adder
+	 */
+	public SettingList addSetting(Widget w2, String nicename,
+			String backendname, String... options) {
+		
+		ArrayList<String> arrayList = new ArrayList<String>();
+		
+		for (int i = 0; i < options.length; i++) {
+			arrayList.add(options[i]);
+		}
+		
+		SettingList s = new SettingList(backendname, arrayList);
+		WidgetList w = new WidgetList(s, nicename);
+		w2.add(w);
+		append(s);
+		return s;
+	}
 
 	/**
 	 * convenience text setting adder
@@ -829,13 +848,13 @@ public class ModSettings {
 	 *            The backend name of the setting.
 	 * @return The SettingList.
 	 */
-	public SettingList getSettingList(String backendName) {
+	public SettingDictionary getSettingList(String backendName) {
 		for (Setting setting : Settings) {
-			if (!SettingList.class.isAssignableFrom(setting.getClass())) {
+			if (!SettingDictionary.class.isAssignableFrom(setting.getClass())) {
 				continue;
 			}
 			if (setting.backendName.equals(backendName)) {
-				return (SettingList) setting;
+				return (SettingDictionary) setting;
 			}
 		}
 		throw new InvalidParameterException("SettingList '" + backendName

@@ -382,19 +382,19 @@ public class ModSettings {
 		append(s);
 		return s;
 	}
-	
+
 	/**
 	 * convenience list setting adder
 	 */
 	public SettingList addSetting(Widget w2, String nicename,
 			String backendname, String... options) {
-		
+
 		ArrayList<String> arrayList = new ArrayList<String>();
-		
+
 		for (int i = 0; i < options.length; i++) {
 			arrayList.add(options[i]);
 		}
-		
+
 		SettingList s = new SettingList(backendname, arrayList);
 		WidgetList w = new WidgetList(s, nicename);
 		w2.add(w);

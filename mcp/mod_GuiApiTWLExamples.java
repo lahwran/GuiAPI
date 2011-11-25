@@ -47,7 +47,13 @@ public class mod_GuiApiTWLExamples extends BaseMod {
 
 	private WidgetSimplewindow screenListBoxTest;
 
-	public mod_GuiApiTWLExamples() {
+	@Override
+	public String getVersion() {
+		return "1.0";
+	}
+
+	@Override
+	public void load() {
 		modSettings = new ModSettings("mod_GuiApiTWLExamples");
 		SetUpColouringWindow();
 
@@ -59,16 +65,24 @@ public class mod_GuiApiTWLExamples extends BaseMod {
 	private void SetUpColouringWindow() {
 		colorFontHelper = new GuiApiFontHelper();
 		WidgetSinglecolumn widgetSingleColumn = new WidgetSinglecolumn();
-		widgetSingleColumn.childWidth = 300;
+		widgetSingleColumn.childDefaultWidth = 300;
 
 		colorLabel = new Label("This is an example of coloring a label's Test.");
 		widgetSingleColumn.add(colorLabel);
 		colorFontHelper.setFont(colorLabel);
-
 		colorProgressBar = new ProgressBar();
 		colorProgressBar.setValue(0.7f);
-		// colorProgressBar.setBackground(GuiWidgetScreen.instance.theme.getImage("progress"));
-		// colorProgressBar.setProgressImage((GuiWidgetScreen.instance.theme.getImage("progress-white")).createTintedVersion(Color.GREEN));
+		colorProgressBar.setTheme("/progressbar");
+		// This sets the theme manually. I'm not currently sure why but unless
+		// you set this it won't actually render the progress bar part, only the
+		// text. You can use this to change it somewhat though. The available
+		// themes for this are:
+		// /progressbar - The standard.
+		// /progressbar-white - Changes the progress image to a plain white
+		// area.
+		// /progressbar-noback - Removes the background image.
+		// /progressbar-white-noback - Changes the progress image to a plain
+		// white area and removes the background image.
 		colorProgressBar.setText("Coloring Progressbar!");
 		widgetSingleColumn.add(colorProgressBar);
 		colorFontHelper.setFont(colorProgressBar);
@@ -100,6 +114,8 @@ public class mod_GuiApiTWLExamples extends BaseMod {
 		listBoxSettingTest = modSettings.addSetting(widgetSingleColumn,
 				"ListBox Test One", "listboxTest1", "Option 1", "Option 2",
 				"Option 3", "Option 4", "Option 5", "Option 6");
+		((WidgetList) listBoxSettingTest.displayWidget).listBox
+				.setTheme("/listbox-noback");
 		widgetSingleColumn.heightOverrideExceptions.put(
 				listBoxSettingTest.displayWidget, 140);
 
@@ -145,11 +161,6 @@ public class mod_GuiApiTWLExamples extends BaseMod {
 	@SuppressWarnings("unused")
 	private void updateColors() {
 		colorFontHelper.setColor(FontStates.normal, colorSelector.getColor());
-	}
-
-	@Override
-	public String Version() {
-		return "1.0";
 	}
 
 }

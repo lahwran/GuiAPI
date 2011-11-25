@@ -6,7 +6,8 @@ import java.io.IOException;
 import java.util.Properties;
 
 /**
- * This is the Setting type for the Properties class. That is, a Dictionary of strings addressable by strings.
+ * This is the Setting type for the Properties class. That is, a Dictionary of
+ * strings addressable by strings.
  * 
  * @author ShaRose
  */

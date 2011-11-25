@@ -16,10 +16,13 @@ public class mod_GuiApiBasicExample extends BaseMod {
 	/** The settings. */
 	public ModSettings mySettings;
 
-	/**
-	 * Instantiates a new mod_GuiApiBasicExample.
-	 */
-	public mod_GuiApiBasicExample() {
+	@Override
+	public String getVersion() {
+		return "1.1";
+	}
+
+	@Override
+	public void load() {
 		// First, create the settings class. The string in question is the
 		// 'backend' name, usually the actual mod class name.
 		mySettings = new ModSettings("mod_GuiApiBasicExample");
@@ -71,8 +74,6 @@ public class mod_GuiApiBasicExample extends BaseMod {
 				"resetAll", mySettings, true));
 		// And finally, don't forget to load any settings you saved earlier!
 		mySettings.load();
-		myModScreen.theWidget.insertChild(GuiApiHelper.makeButton("Test!",
-				GuiApiHelper.clickModAction, false), 1);
 	}
 
 	/**
@@ -132,10 +133,5 @@ public class mod_GuiApiBasicExample extends BaseMod {
 		GuiModScreen.show(GuiApiHelper.makeTextDisplayAndGoBack(
 				"My Current Settings", displayTextBuilder.toString(),
 				"OK, Go back to the settings now.", false));
-	}
-
-	@Override
-	public String Version() {
-		return "1.0";
 	}
 }

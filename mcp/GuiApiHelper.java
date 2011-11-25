@@ -27,6 +27,7 @@ public class GuiApiHelper {
 	 * when pressing a button in minecraft.
 	 */
 	public final static ModAction clickModAction;
+
 	static {
 		backModAction = new ModAction(GuiModScreen.class, "back");
 		GuiApiHelper.backModAction.setTag("Helper Back ModAction");
@@ -351,7 +352,7 @@ public class GuiApiHelper {
 	 *            the previous menu. If false, don't.
 	 * @return The generated widget. Use GuiModScreen.show to display it.
 	 */
-	public Widget genWidget(Boolean showBackButton) {
+	public WidgetSimplewindow genWidget(Boolean showBackButton) {
 		WidgetSinglecolumn widget = new WidgetSinglecolumn(new Widget[0]);
 		TextArea textarea = GuiApiHelper.makeTextArea(displayText_, false);
 		widget.add(textarea);

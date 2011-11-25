@@ -278,7 +278,7 @@ public class ModAction implements Runnable, PropertyChangeListener,
 	 * Sets the tag of this ModAction. Used for tracking, and is included with
 	 * exceptions.
 	 * 
-	 * @param name
+	 * @param tag
 	 *            The tag to assign to this ModAction.
 	 */
 	public void setTag(Object tag) {

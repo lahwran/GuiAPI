@@ -28,7 +28,7 @@ public class GuiWidgetScreen extends Widget {
 	 * The width of the screen that the widget will render on.
 	 */
 	public static int screenwidth;
-	
+
 	public static URL themeURL;
 
 	/**
@@ -43,7 +43,10 @@ public class GuiWidgetScreen extends Widget {
 
 		String GuiAPILoc = GuiWidgetScreen.class.getProtectionDomain()
 				.getCodeSource().getLocation().toString();
-		String MinecraftLoc = MinecraftImpl.class.getProtectionDomain() // normally I would just use Minecraft.class, but with a mod that edits it it might have issues. But nobody is going to ever need or want to edit MinecraftImpl.class.
+		// normally I would just use Minecraft.class, but with a mod that edits
+		// it it might have issues. But nobody is going to ever need or want to
+		// edit EnumOS2.class.
+		String MinecraftLoc = EnumOS2.class.getProtectionDomain()
 				.getCodeSource().getLocation().toString();
 
 		if (!GuiAPILoc.equals(MinecraftLoc)) {
@@ -56,11 +59,14 @@ public class GuiWidgetScreen extends Widget {
 			String themename = "twlGuiTheme.xml";
 			GuiWidgetScreen.instance.gui = new GUI(GuiWidgetScreen.instance,
 					GuiWidgetScreen.instance.renderer, new LWJGLInput());
-			themeURL = GuiWidgetScreen.class.getClassLoader().getResource(themename);
-			//themeURL = new URL("file:/G:/MineCraft/GitHub/GuiAPI/theme/" + themename); // Testing
-			ModSettings.dbgout(themeURL.toString());
-			GuiWidgetScreen.instance.theme = ThemeManager.createThemeManager(
-					themeURL, GuiWidgetScreen.instance.renderer);
+			GuiWidgetScreen.themeURL = GuiWidgetScreen.class.getClassLoader()
+					.getResource(themename);
+			// themeURL = new URL("file:/G:/MineCraft/GitHub/GuiAPI/theme/" +
+			// themename); // Testing
+			ModSettings.dbgout(GuiWidgetScreen.themeURL.toString());
+			GuiWidgetScreen.instance.theme = ThemeManager
+					.createThemeManager(GuiWidgetScreen.themeURL,
+							GuiWidgetScreen.instance.renderer);
 			if (GuiWidgetScreen.instance.theme == null) {
 				throw new RuntimeException(
 						"I don't think you installed the theme correctly ...");
@@ -151,6 +157,7 @@ public class GuiWidgetScreen extends Widget {
 		removeAllChildren();
 		add(widget);
 		GuiApiFontHelper.resyncCustomFonts();
+
 		currentWidget = widget;
 	}
 }

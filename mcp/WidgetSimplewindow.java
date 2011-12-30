@@ -32,6 +32,11 @@ public class WidgetSimplewindow extends Widget {
 	 * This is a reference to the main widget in the center.
 	 */
 	public Widget mainWidget = new Widget();
+	
+	/**
+	 * This is a reference to the ScrollPane that the Main Widget is in.
+	 */
+	public Widget scrollPane = null;
 	/**
 	 * This is a reference to the Label that acts as the title on top.
 	 */
@@ -93,9 +98,10 @@ public class WidgetSimplewindow extends Widget {
 	 * @param showbackButton
 	 */
 	public WidgetSimplewindow(Widget w, String s, Boolean showbackButton) {
-		ScrollPane mainWidget_ = new ScrollPane(w);
-		mainWidget_.setFixed(ScrollPane.Fixed.HORIZONTAL);
-		mainWidget = mainWidget_;
+		ScrollPane scrollPane = new ScrollPane(w);
+		scrollPane.setFixed(ScrollPane.Fixed.HORIZONTAL);
+		this.scrollPane = scrollPane;
+		mainWidget = w;
 		setTheme("");
 		init(showbackButton, s);
 	}
@@ -127,7 +133,7 @@ public class WidgetSimplewindow extends Widget {
 		} else {
 			vBottomPadding = 0;
 		}
-		add(mainWidget);
+		add(scrollPane);
 	}
 
 	@Override
@@ -147,8 +153,8 @@ public class WidgetSimplewindow extends Widget {
 			titleWidget.setSize(titleWidget.computeTextWidth(),
 					titleWidget.computeTextHeight());
 		}
-		mainWidget.setPosition(hPadding, vTopPadding);
-		mainWidget.setSize(getWidth() - (hPadding * 2), getHeight()
+		scrollPane.setPosition(hPadding, vTopPadding);
+		scrollPane.setSize(getWidth() - (hPadding * 2), getHeight()
 				- (vTopPadding + vBottomPadding));
 	}
 }

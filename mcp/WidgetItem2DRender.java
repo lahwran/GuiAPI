@@ -13,12 +13,12 @@ import de.matthiasmann.twl.Widget;
  * border as per the theme for progressbars. This can be changed via setTheme,
  * see mod_GuiApiTWLExamples.SetUpColouringWindow comments for details.
  * 
- * @author Shawn
+ * @author ShaRose
  * 
  */
 public class WidgetItem2DRender extends Widget {
 
-	private static RenderItem renderer = new RenderItem();
+	private static RenderItem itemRenderer = new RenderItem();
 
 	private int renderID;
 
@@ -71,8 +71,8 @@ public class WidgetItem2DRender extends Widget {
 		float scalex = 1f;
 		float scaley = 1f;
 
-		int maxWidth = getInnerWidth();
-		int maxHeight = getInnerHeight();
+		int maxWidth = getInnerWidth() - 4;
+		int maxHeight = getInnerHeight() - 4;
 
 		int scaleType = getScaleType();
 
@@ -118,31 +118,49 @@ public class WidgetItem2DRender extends Widget {
 			y /= scaley;
 			break;
 		}
-
 		default:
 			throw new IndexOutOfBoundsException(
 					"Scale Type is out of bounds! This should never happen!");
 		}
+
+		x += 2;
+		y += 1;
 
 		if ((minecraft == null) || (Item.itemsList[getRenderID()] == null)) {
 			// draw black or something? Maybe NULL?
 			return;
 		}
 
+		GuiWidgetScreen screen = GuiWidgetScreen.getInstance();
+		screen.renderer.pauseRendering();
+
+		screen.renderer.setClipRect();
+		GL11.glEnable(GL11.GL_SCISSOR_TEST);
 		GL11.glPushMatrix();
-		GL11.glDisable(3042 /* GL_BLEND *//* GL_BLEND */);
+
+		GL11.glDisable(GL11.GL_BLEND);
 		GL11.glEnable(32826 /* GL_RESCALE_NORMAL_EXT *//* GL_RESCALE_NORMAL_EXT */);
 		RenderHelper.enableStandardItemLighting();
-		GL11.glScalef(scalex, scaley, 1);
-		ItemStack stack = new ItemStack(getRenderID(), 1, 0);
-		WidgetItem2DRender.renderer.renderItemIntoGUI(minecraft.fontRenderer,
-				minecraft.renderEngine, stack, x, y);
-		WidgetItem2DRender.renderer.renderItemOverlayIntoGUI(
-				minecraft.fontRenderer, minecraft.renderEngine, stack, x, y);
+		RenderHelper.func_41089_c();
 
+		if (getRenderID() == Block.chest.blockID) {
+			minecraft.renderEngine.bindTexture(minecraft.renderEngine
+					.getTexture("/item/chest.png"));
+		}
+
+		GL11.glScalef(scalex, scaley, 1);
+
+		ItemStack stack = new ItemStack(getRenderID(), 0, 0);
+		WidgetItem2DRender.itemRenderer.renderItemIntoGUI(
+				minecraft.fontRenderer, minecraft.renderEngine, stack, x, y);
+		WidgetItem2DRender.itemRenderer.renderItemOverlayIntoGUI(
+				minecraft.fontRenderer, minecraft.renderEngine, stack, x, y);
 		RenderHelper.disableStandardItemLighting();
 		GL11.glDisable(32826 /* GL_RESCALE_NORMAL_EXT *//* GL_RESCALE_NORMAL_EXT */);
+
 		GL11.glPopMatrix();
+		GL11.glDisable(GL11.GL_SCISSOR_TEST);
+		screen.renderer.resumeRendering();
 	}
 
 	/**

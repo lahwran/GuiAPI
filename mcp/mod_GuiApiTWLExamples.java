@@ -5,6 +5,7 @@ import java.util.Random;
 import net.minecraft.src.GuiApiFontHelper.FontStates;
 import de.matthiasmann.twl.ColorSelector;
 import de.matthiasmann.twl.Label;
+import de.matthiasmann.twl.ListBox;
 import de.matthiasmann.twl.ProgressBar;
 import de.matthiasmann.twl.Widget;
 import de.matthiasmann.twl.model.ColorSpaceHSL;
@@ -20,10 +21,26 @@ public class mod_GuiApiTWLExamples extends BaseMod {
 
 	@SuppressWarnings("unused")
 	private static void removeSelectedListboxOption(SettingList setting) {
-		int selected = ((WidgetList) setting.displayWidget).listBox
-				.getSelected();
+
+		ListBox<String> listbox = ((WidgetList) setting.displayWidget).listBox;
+		int selected = listbox.getSelected();
+		if (selected == -1) {
+			return;
+		}
 		setting.get().remove(selected);
 		setting.displayWidget.update();
+
+		if (selected == listbox.getNumEntries()) // I'm only removing one at a
+													// time, so this is OK.
+		{
+			selected--;
+		}
+		if (selected == -1) {
+			return; // This is if there aren't any entries to select left. I
+					// could also check getNumEntries to see if it's 0.
+		}
+
+		listbox.setSelected(selected);
 	}
 
 	@SuppressWarnings("unused")
@@ -115,7 +132,7 @@ public class mod_GuiApiTWLExamples extends BaseMod {
 				"ListBox Test One", "listboxTest1", "Option 1", "Option 2",
 				"Option 3", "Option 4", "Option 5", "Option 6");
 		((WidgetList) listBoxSettingTest.displayWidget).listBox
-				.setTheme("/listbox-noback");
+				.setTheme("/listbox");
 		widgetSingleColumn.heightOverrideExceptions.put(
 				listBoxSettingTest.displayWidget, 140);
 

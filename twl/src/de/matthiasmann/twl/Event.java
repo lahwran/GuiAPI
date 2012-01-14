@@ -86,10 +86,16 @@ public final class Event {
         MOUSE_WHEEL(true, false),
         /**
          * A key has been pressed. Not all keys generate characters.
+         * @see #isKeyEvent()
+         * @see #isKeyPressedEvent() 
+         * @see #isKeyRepeated() 
+         * @see #hasKeyChar() 
+         * @see #hasKeyCharNoModifiers() 
          */
         KEY_PRESSED(false, true),
         /**
          * A key has been released. No character data is available.
+         * @see #isKeyEvent() 
          */
         KEY_RELEASED(false, true),
         /**
@@ -376,16 +382,16 @@ public final class Event {
     }
 
     /**
-     * Returns the current mouse X coordinate
-     * @return the current mouse X coordinate
+     * Returns the current absolute mouse X coordinate
+     * @return the current absolute mouse X coordinate
      */
     public final int getMouseX() {
         return mouseX;
     }
 
     /**
-     * Returns the current mouse Y coordinate
-     * @return the current mouse Y coordinate
+     * Returns the current absolute mouse Y coordinate
+     * @return the current absolute mouse Y coordinate
      */
     public final int getMouseY() {
         return mouseY;

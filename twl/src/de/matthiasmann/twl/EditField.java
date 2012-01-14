@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2011, Matthias Mann
  * 
  * All rights reserved.
  * 
@@ -30,11 +30,16 @@
 package de.matthiasmann.twl;
 
 import de.matthiasmann.twl.model.AutoCompletionDataSource;
+import de.matthiasmann.twl.model.DefaultEditFieldModel;
+import de.matthiasmann.twl.model.EditFieldModel;
+import de.matthiasmann.twl.model.StringAttributes;
 import de.matthiasmann.twl.model.StringModel;
 import de.matthiasmann.twl.renderer.AnimationState.StateKey;
+import de.matthiasmann.twl.renderer.AttributedStringFontCache;
 import de.matthiasmann.twl.utils.TextUtil;
 import de.matthiasmann.twl.utils.CallbackSupport;
 import de.matthiasmann.twl.renderer.Font;
+import de.matthiasmann.twl.renderer.Font2;
 import de.matthiasmann.twl.renderer.Image;
 import java.util.concurrent.ExecutorService;
 
@@ -48,6 +53,7 @@ public class EditField extends Widget {
     public static final StateKey STATE_ERROR = StateKey.get("error");
     public static final StateKey STATE_READONLY = StateKey.get("readonly");
     public static final StateKey STATE_HOVER = StateKey.get("hover");
+    public static final StateKey STATE_CURSOR_MOVED = StateKey.get("cursorMoved");
 
     public interface Callback {
         /**
@@ -62,12 +68,13 @@ public class EditField extends Widget {
         public void callback(int key);
     }
 
-    final StringBuilder editBuffer;
-    private final TextRenderer textRenderer;
+    final EditFieldModel editBuffer;
+    public final TextRenderer textRenderer;
     private PasswordMasker passwordMasking;
     private Runnable modelChangeListener;
     private StringModel model;
     private boolean readOnly;
+    StringAttributes attributes;
 
     private int cursorPos;
     int scrollPos;
@@ -84,11 +91,13 @@ public class EditField extends Widget {
     Image selectionImage;
     private char passwordChar;
     private Object errorMsg;
+    private boolean errorMsgFromModel;
     private Callback[] callbacks;
     private Menu popupMenu;
     private boolean textLongerThenWidget;
     private boolean forwardUnhandledKeysToCallback;
     private boolean autoCompletionOnSetText = true;
+    boolean scrollToCursorOnSizeChange = true;
 
     private EditFieldAutoCompletionWindow autoCompletionWindow;
     private int autoCompletionHeight = 100;
@@ -104,12 +113,17 @@ public class EditField extends Widget {
      * one as parent.
      *
      * @param parentAnimationState
+     * @param editFieldModel the edit field model to use
      * @see AnimationState#AnimationState(de.matthiasmann.twl.AnimationState) 
      */
-    public EditField(AnimationState parentAnimationState) {
+    public EditField(AnimationState parentAnimationState, EditFieldModel editFieldModel) {
         super(parentAnimationState, true);
-        
-        this.editBuffer = new StringBuilder();
+
+        if(editFieldModel == null) {
+            throw new NullPointerException("editFieldModel");
+        }
+
+        this.editBuffer = editFieldModel;
         this.textRenderer = new TextRenderer(getAnimationState());
         this.passwordChar = '*';
 
@@ -124,6 +138,20 @@ public class EditField extends Widget {
         addActionMapping("copy", "copyToClipboard");
         addActionMapping("paste", "pasteFromClipboard");
         addActionMapping("selectAll", "selectAll");
+    }
+
+    /**
+     * Creates a new EditField with an optional parent animation state.
+     *
+     * Unlike other widgets which use the passed animation state directly,
+     * the EditField always creates it's animation state with the passed
+     * one as parent.
+     *
+     * @param parentAnimationState
+     * @see AnimationState#AnimationState(de.matthiasmann.twl.AnimationState)
+     */
+    public EditField(AnimationState parentAnimationState) {
+        this(parentAnimationState, new DefaultEditFieldModel());
     }
 
     public EditField() {
@@ -168,6 +196,14 @@ public class EditField extends Widget {
         this.autoCompletionOnSetText = autoCompletionOnSetText;
     }
 
+    public boolean isScrollToCursorOnSizeChange() {
+        return scrollToCursorOnSizeChange;
+    }
+
+    public void setScrollToCursorOnSizeChange(boolean scrollToCursorOnSizeChange) {
+        this.scrollToCursorOnSizeChange = scrollToCursorOnSizeChange;
+    }
+    
     protected void doCallback(int key) {
         if(callbacks != null) {
             for(Callback cb : callbacks) {
@@ -264,24 +300,41 @@ public class EditField extends Widget {
      * Set a new text for this EditField.
      * If the new text is longer then {@link #getMaxTextLength()} then it is truncated.
      * The selection is cleared.
-     * The cursor is positioned at the end of the new text.
+     * The cursor is positioned at the end of the new text (single line) or at
+     * the start of the text (multi line).
      * If a model is set, then the model is also updated.
      *
      * @param text the new text
      * @throws NullPointerException if text is null
+     * @see #setMultiLine(boolean)
      */
     public void setText(String text) {
         text = TextUtil.limitStringLength(text, maxTextLength);
         editBuffer.replace(0, editBuffer.length(), text);
-        cursorPos = editBuffer.length();
+        cursorPos = multiLine ? 0 : editBuffer.length();
         selectionStart = 0;
         selectionEnd = 0;
+        updateSelection();
         updateText(autoCompletionOnSetText, Event.KEY_NONE);
         scrollToCursor(true);
     }
 
     public String getText() {
         return editBuffer.toString();
+    }
+    
+    public StringAttributes getStringAttributes() {
+        if(attributes == null) {
+            textRenderer.setCache(false);
+            attributes = new StringAttributes(editBuffer, getAnimationState());
+        }
+        return attributes;
+    }
+    
+    public void disableStringAttributes() {
+        if(attributes != null) {
+            attributes = null;
+        }
     }
     
     public String getSelectedText() {
@@ -322,9 +375,11 @@ public class EditField extends Widget {
             }
             int insertLength = Math.min(str.length(), maxTextLength - editBuffer.length());
             if(insertLength > 0) {
-                editBuffer.insert(cursorPos, str, 0, insertLength);
-                cursorPos += insertLength;
-                update = true;
+                int inserted = editBuffer.replace(cursorPos, 0, str.substring(0, insertLength));
+                if(inserted > 0) {
+                    cursorPos += inserted;
+                    update = true;
+                }
             }
             if(update) {
                 updateText(true, Event.KEY_NONE);
@@ -462,13 +517,11 @@ public class EditField extends Widget {
     }
 
     public void setErrorMessage(Object errorMsg) {
+        errorMsgFromModel = false;
         getAnimationState().setAnimationState(STATE_ERROR, errorMsg != null);
         if(this.errorMsg != errorMsg) {
             this.errorMsg = errorMsg;
-            GUI gui = getGUI();
-            if(gui != null) {
-                gui.requestToolTipUpdate(this);
-            }
+            updateTooltip();
         }
         if(errorMsg != null) {
             if(hasKeyboardFocus()) {
@@ -724,7 +777,17 @@ public class EditField extends Widget {
 
     private void updateText(boolean updateAutoCompletion, int key) {
         if(model != null) {
-            model.setValue(getText());
+            try {
+                model.setValue(getText());
+                if(errorMsgFromModel) {
+                    setErrorMessage(null);
+                }
+            } catch(Exception ex) {
+                if(errorMsg == null || errorMsgFromModel) {
+                    setErrorMessage(ex.getMessage());
+                    errorMsgFromModel = true;
+                }
+            }
         }
         updateTextDisplay();
         if(multiLine) {
@@ -742,6 +805,7 @@ public class EditField extends Widget {
 
     private void updateTextDisplay() {
         textRenderer.setCharSequence(passwordMasking != null ? passwordMasking : editBuffer);
+        textRenderer.cacheDirty = true;
         checkTextWidth();
         scrollToCursor(false);
     }
@@ -775,8 +839,12 @@ public class EditField extends Widget {
     protected void setCursorPos(int pos, boolean select) {
         pos = Math.max(0, Math.min(editBuffer.length(), pos));
         if(!select) {
+            boolean hadSelection = hasSelection();
             selectionStart = pos;
             selectionEnd = pos;
+            if(hadSelection) {
+                updateSelection();
+            }
         }
         if(this.cursorPos != pos) {
             if(select) {
@@ -795,11 +863,25 @@ public class EditField extends Widget {
                     selectionStart = selectionEnd;
                     selectionEnd = t;
                 }
+                updateSelection();
             }
 
+            if(this.cursorPos != pos) {
+                getAnimationState().resetAnimationTime(STATE_CURSOR_MOVED);
+            }
             this.cursorPos = pos;
             scrollToCursor(false);
             updateAutoCompletion();
+        }
+    }
+    
+    protected void updateSelection() {
+        if(attributes != null) {
+            attributes.removeAnimationState(TextWidget.STATE_TEXT_SELECTION);
+            attributes.setAnimationState(TextWidget.STATE_TEXT_SELECTION,
+                    selectionStart, selectionEnd, true);
+            attributes.optimize();
+            textRenderer.cacheDirty = true;
         }
     }
 
@@ -813,6 +895,7 @@ public class EditField extends Widget {
     public void selectAll() {
         selectionStart = 0;
         selectionEnd = editBuffer.length();
+        updateSelection();
     }
 
     public void setSelection(int start, int end) {
@@ -821,6 +904,7 @@ public class EditField extends Widget {
         }
         selectionStart = start;
         selectionEnd = end;
+        updateSelection();
     }
     
     protected void selectWordFromMouse(int index) {
@@ -832,6 +916,7 @@ public class EditField extends Widget {
         while(selectionEnd < editBuffer.length() && !Character.isWhitespace(editBuffer.charAt(selectionEnd))) {
             selectionEnd++;
         }
+        updateSelection();
     }
 
     protected void scrollToCursor(boolean force) {
@@ -868,9 +953,10 @@ public class EditField extends Widget {
                 update = true;
             }
             if(editBuffer.length() < maxTextLength) {
-                editBuffer.insert(cursorPos, ch);
-                cursorPos++;
-                update = true;
+                if(editBuffer.replace(cursorPos, 0, ch)) {
+                    cursorPos++;
+                    update = true;
+                }
             }
             if(update) {
                 updateText(true, Event.KEY_NONE);
@@ -896,16 +982,17 @@ public class EditField extends Widget {
                 deleteSelection();
                 updateText(true, Event.KEY_DELETE);
             } else if(cursorPos < editBuffer.length()) {
-                editBuffer.deleteCharAt(cursorPos);
-                updateText(true, Event.KEY_DELETE);
+                if(editBuffer.replace(cursorPos, 1, "") >= 0) {
+                    updateText(true, Event.KEY_DELETE);
+                }
             }
         }
     }
 
     protected void deleteSelection() {
-        editBuffer.delete(selectionStart, selectionEnd);
-        selectionEnd = selectionStart;
-        setCursorPos(selectionStart, false);
+        if(editBuffer.replace(selectionStart, selectionEnd-selectionStart, "") >= 0) {
+            setCursorPos(selectionStart, false);
+        }
     }
 
     protected void modelChanged() {
@@ -932,7 +1019,7 @@ public class EditField extends Widget {
     }
 
     protected int computeLineNumber(int cursorPos) {
-        final StringBuilder eb = this.editBuffer;
+        final EditFieldModel eb = this.editBuffer;
         int lineNr = 0;
         for(int i=0 ; i<cursorPos ; i++) {
             if(eb.charAt(i) == '\n') {
@@ -946,7 +1033,7 @@ public class EditField extends Widget {
         if(!multiLine) {
             return 0;
         }
-        final StringBuilder eb = this.editBuffer;
+        final EditFieldModel eb = this.editBuffer;
         while(cursorPos > 0 && eb.charAt(cursorPos-1) != '\n') {
             cursorPos--;
         }
@@ -954,7 +1041,7 @@ public class EditField extends Widget {
     }
 
     protected int computeLineEnd(int cursorPos) {
-        final StringBuilder eb = this.editBuffer;
+        final EditFieldModel eb = this.editBuffer;
         int endIndex = eb.length();
         if(!multiLine) {
             return endIndex;
@@ -1047,8 +1134,22 @@ public class EditField extends Widget {
     }
 
     private void layoutErrorInfoWindow() {
-        errorInfoWindow.setSize(getWidth(), errorInfoWindow.getPreferredHeight());
-        errorInfoWindow.setPosition(getX(), getBottom());
+        int x = getX();
+        int width = getWidth();
+        
+        Widget container = errorInfoWindow.getParent();
+        if(container != null) {
+            width = Math.max(width, computeSize(
+                    errorInfoWindow.getMinWidth(),
+                    errorInfoWindow.getPreferredWidth(),
+                    errorInfoWindow.getMaxWidth()));
+            int popupMaxRight = container.getInnerRight();
+            if(x + width > popupMaxRight) {
+                x = popupMaxRight - Math.min(width, container.getInnerWidth());
+            }
+            errorInfoWindow.setSize(width, errorInfoWindow.getPreferredHeight());
+            errorInfoWindow.setPosition(x, getBottom());
+        }
     }
 
     @Override
@@ -1086,6 +1187,8 @@ public class EditField extends Widget {
     protected class TextRenderer extends TextWidget {
         int lastTextX;
         int lastScrollPos;
+        AttributedStringFontCache cache;
+        boolean cacheDirty;
 
         protected TextRenderer(AnimationState animState) {
             super(animState);
@@ -1098,7 +1201,10 @@ public class EditField extends Widget {
             }
             lastScrollPos = hasFocusOrPopup() ? scrollPos : 0;
             lastTextX = computeTextX();
-            if(hasSelection() && hasFocusOrPopup()) {
+            Font font = getFont();
+            if(attributes != null && font instanceof Font2) {
+                paintWithAttributes((Font2)font);
+            } else if(hasSelection() && hasFocusOrPopup()) {
                 if(multiLine) {
                     paintMultiLineWithSelection();
                 } else {
@@ -1112,17 +1218,19 @@ public class EditField extends Widget {
         protected void paintWithSelection(int lineStart, int lineEnd, int yoff) {
             int selStart = selectionStart;
             int selEnd = selectionEnd;
-            if(selectionImage != null && selEnd > lineStart && selStart < lineEnd) {
+            if(selectionImage != null && selEnd > lineStart && selStart <= lineEnd) {
                 int xpos0 = lastTextX + computeRelativeCursorPositionX(lineStart, selStart);
-                int xpos1 = lastTextX + computeRelativeCursorPositionX(lineStart, Math.min(lineEnd, selEnd));
+                int xpos1 = (lineEnd < selEnd) ? getInnerRight() :
+                        lastTextX + computeRelativeCursorPositionX(lineStart, Math.min(lineEnd, selEnd));
                 selectionImage.draw(getAnimationState(), xpos0, yoff,
                         xpos1 - xpos0, getFont().getLineHeight());
             }
+            
             paintWithSelection(getAnimationState(), selStart, selEnd, lineStart, lineEnd, yoff);
         }
 
         protected void paintMultiLineWithSelection() {
-            final StringBuilder eb = editBuffer;
+            final EditFieldModel eb = editBuffer;
             int lineStart = 0;
             int endIndex = eb.length();
             int yoff = computeTextY();
@@ -1136,15 +1244,73 @@ public class EditField extends Widget {
                 lineStart = lineEnd + 1;
             }
         }
+        
+        protected void paintMultiLineSelectionBackground() {
+            int lineHeight = getLineHeight();
+            int lineStart = computeLineStart(selectionStart);
+            int lineNumber = computeLineNumber(lineStart);
+            int endIndex = selectionEnd;
+            int yoff = computeTextY() + lineHeight * lineNumber;
+            int xstart = lastTextX + computeRelativeCursorPositionX(lineStart, selectionStart);
+            while(lineStart < endIndex) {
+                int lineEnd = computeLineEnd(lineStart);
+                int xend;
+
+                if(lineEnd < endIndex) {
+                    xend = getInnerRight();
+                } else {
+                    xend = lastTextX + computeRelativeCursorPositionX(lineStart, endIndex);
+                }
+                
+                selectionImage.draw(getAnimationState(), xstart, yoff, xend - xstart, lineHeight);
+                
+                yoff += lineHeight;
+                lineStart = lineEnd + 1;
+                xstart = getInnerX();
+            }
+        }
+        
+        protected void paintWithAttributes(Font2 font) {
+            if(selectionEnd > selectionStart && selectionImage != null) {
+                paintMultiLineSelectionBackground();
+            }
+            if(cache == null || cacheDirty) {
+                cacheDirty = false;
+                if(multiLine) {
+                    cache = font.cacheMultiLineText(cache, attributes);
+                } else {
+                    cache = font.cacheText(cache, attributes);
+                }
+            }
+            int y = computeTextY();
+            if(cache != null) {
+                cache.draw(lastTextX, y);
+            } else if(multiLine) {
+                font.drawMultiLineText(lastTextX, y, attributes);
+            } else {
+                font.drawText(lastTextX, y, attributes);
+            }
+        }
 
         @Override
         protected void sizeChanged() {
-            scrollToCursor(true);
+            if(scrollToCursorOnSizeChange) {
+                scrollToCursor(true);
+            }
         }
 
         @Override
         protected int computeTextX() {
             return getInnerX() - lastScrollPos;
+        }
+
+        @Override
+        public void destroy() {
+            super.destroy();
+            if(cache != null) {
+                cache.destroy();
+                cache = null;
+            }
         }
     }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2011, Matthias Mann
  *
  * All rights reserved.
  *
@@ -40,8 +40,10 @@ import de.matthiasmann.twl.renderer.FontParameter;
 import de.matthiasmann.twl.renderer.MouseCursor;
 import de.matthiasmann.twl.renderer.Font;
 import de.matthiasmann.twl.renderer.LineRenderer;
+import de.matthiasmann.twl.renderer.OffscreenRenderer;
 import de.matthiasmann.twl.renderer.Renderer;
 import de.matthiasmann.twl.renderer.Texture;
+import de.matthiasmann.twl.utils.ClipStack;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.ByteBuffer;
@@ -81,7 +83,7 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
     final int maxTextureSize;
 
     private int viewportX;
-    private int viewportY;
+    private int viewportBottom;
     private int width;
     private int height;
     private boolean hasScissor;
@@ -96,16 +98,23 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
 
     final SWCursorAnimState swCursorAnimState;
     final ArrayList<TextureArea> textureAreas;
+    final ArrayList<TextureAreaRotated> rotatedTextureAreas;
     final ArrayList<LWJGLDynamicImage> dynamicImages;
     TintStack tintStack;
-
+    
+    protected final ClipStack clipStack;
+    protected final Rect clipRectTemp;
+    
     @SuppressWarnings("OverridableMethodCallInConstructor")
     public LWJGLRenderer() throws LWJGLException {
         this.ib16 = BufferUtils.createIntBuffer(16);
         this.textureAreas = new ArrayList<TextureArea>();
+        this.rotatedTextureAreas = new ArrayList<TextureAreaRotated>();
         this.dynamicImages = new ArrayList<LWJGLDynamicImage>();
         this.tintStateRoot = new TintStack();
         this.tintStack = tintStateRoot;
+        this.clipStack = new ClipStack();
+        this.clipRectTemp = new Rect();
         syncViewportSize();
 
         GL11.glGetInteger(GL11.GL_MAX_TEXTURE_SIZE, ib16);
@@ -181,8 +190,12 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
             for(TextureArea ta : textureAreas) {
                 ta.destroyRepeatCache();
             }
+            for(TextureAreaRotated tar : rotatedTextureAreas) {
+                tar.destroyRepeatCache();
+            }
         } finally {
             textureAreas.clear();
+            rotatedTextureAreas.clear();
         }
     }
 
@@ -203,9 +216,26 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
         ib16.clear();
         GL11.glGetInteger(GL11.GL_VIEWPORT, ib16);
         viewportX = ib16.get(0);
-        viewportY = ib16.get(1);
         width = ib16.get(2);
         height = ib16.get(3);
+        viewportBottom = ib16.get(1) + height;
+    }
+    
+    /**
+     * Sets the viewport size & position.
+     * <p>This method is preferred over {@link #syncViewportSize() } as it avoids
+     * calling {@link GL11#glGetInteger(int, java.nio.IntBuffer) }.</p>
+     * 
+     * @param x the X position (GL_VIEWPORT index 0)
+     * @param y the Y position (GL_VIEWPORT index 1)
+     * @param width the width (GL_VIEWPORT index 2)
+     * @param height the height (GL_VIEWPORT index 3)
+     */
+    public void setViewport(int x, int y, int width, int height) {
+        this.viewportX = x;
+        this.viewportBottom = y + height;
+        this.width = width;
+        this.height = height;
     }
 
     public long getTimeMillis() {
@@ -216,18 +246,8 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
         }
         return time;
     }
-
-    /**
-     * Setup GL to start rendering the GUI. It assumes default GL state.
-     */
-    public boolean startRenderering() {
-        if(width <= 0 || height <= 0) {
-            return false;
-        }
-
-        hasScissor = false;
-        tintStack = tintStateRoot;
-        
+    
+    protected void setupGLState() {
         GL11.glPushAttrib(GL11.GL_ENABLE_BIT|GL11.GL_TRANSFORM_BIT|GL11.GL_HINT_BIT|
                 GL11.GL_COLOR_BUFFER_BIT|GL11.GL_SCISSOR_BIT|GL11.GL_LINE_BIT|GL11.GL_TEXTURE_BIT);
         GL11.glMatrixMode(GL11.GL_PROJECTION);
@@ -242,23 +262,56 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
         GL11.glEnable(GL11.GL_LINE_SMOOTH);
         GL11.glDisable(GL11.GL_DEPTH_TEST);
         GL11.glDisable(GL11.GL_LIGHTING);
+        GL11.glDisable(GL11.GL_SCISSOR_TEST);
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GL11.glHint(GL11.GL_LINE_SMOOTH_HINT, GL11.GL_NICEST);
-        RenderScale.doscale();
-        
-        return true;
     }
-
-    public void endRendering() {
-        if(swCursor != null) {
-            tintStack = tintStateRoot;
-            swCursor.render(mouseX, mouseY);
-        }
-        RenderScale.descale();
+    
+    protected void revertGLState() {
         GL11.glPopMatrix();
         GL11.glMatrixMode(GL11.GL_PROJECTION);
         GL11.glPopMatrix();
         GL11.glPopAttrib();
+    }
+    
+    /**
+     * Setup GL to start rendering the GUI. It assumes default GL state.
+     */
+    public boolean startRendering() {
+        if(width <= 0 || height <= 0) {
+            return false;
+        }
+        
+        prepareForRendering();
+        setupGLState();
+        RenderScale.doscale();
+        return true;
+    }
+
+    public void endRendering() {
+        renderSWCursor();
+        RenderScale.descale();
+        revertGLState();
+    }
+    
+    /**
+     * Call to revert the GL state to the state before calling
+     * {@link #startRendering()}.
+     * @see #resumeRendering() 
+     */
+    public void pauseRendering() {
+    	RenderScale.descale();
+        revertGLState();
+    }
+    
+    /**
+     * Resume rendering after a call to {@link #pauseRendering()}.
+     */
+    public void resumeRendering() {
+        hasScissor = false;
+        setupGLState();
+        RenderScale.doscale();
+        setClipRect();
     }
     
     public int getHeight() {
@@ -268,13 +321,49 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
     public int getWidth() {
         return width;
     }
+    
+    /**
+     * Retrieves the X position of the OpenGL viewport (index 0 of GL_VIEWPORT)
+     * @return the X position of the OpenGL viewport
+     */
+    public int getViewportX() {
+        return viewportX;
+    }
+    
+    /**
+     * Retrieves the Y position of the OpenGL viewport (index 1 of GL_VIEWPORT)
+     * @return the Y position of the OpenGL viewport
+     */
+    public int getViewportY() {
+        return viewportBottom - height;
+    }
 
-    public Font loadFont(URL baseUrl, Map<String, String> parameter, Collection<FontParameter> conditionalParameter) throws IOException {
-        String fileName = parameter.get("filename");
-        if(fileName == null) {
-            throw new IllegalArgumentException("filename parameter required");
+    /**
+     * Loads a font (either BMFont XML or ASCII format).
+     * <p>If the parameter @code "filename"} is specified then it will be resolved
+     * against the specified URL, otherwise the URL is used directly.</p>
+     * <p>The parameter {@code "color"} is required and must be in a format
+     * parsable by {@link Color#parserColor(java.lang.String)}</p>
+     * @param url the url for the font file 
+     * @param parameter a list of parameters for loading this font
+     * @param conditionalParameter condition parameters for use with {@link AnimationState}
+     * @return a Font object
+     * @throws IOException if the font could not be loaded
+     */
+    public Font loadFont(URL url, Map<String, String> parameter, Collection<FontParameter> conditionalParameter) throws IOException {
+        if(url == null) {
+            throw new NullPointerException("url");
         }
-        URL url = new URL(baseUrl, fileName);
+        if(parameter == null) {
+            throw new NullPointerException("parameter");
+        }
+        if(conditionalParameter == null) {
+            throw new NullPointerException("conditionalParameter");
+        }
+        String fileName = parameter.get("filename");
+        if(fileName != null) {
+            url = new URL(url, fileName);
+        }
         BitmapFont bmFont = activeCacheContext().loadBitmapFont(url);
         return new LWJGLFont(this, bmFont, parameter, conditionalParameter);
     }
@@ -301,6 +390,10 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
 
     public LineRenderer getLineRenderer() {
         return this;
+    }
+
+    public OffscreenRenderer getOffscreenRenderer() {
+        return null;
     }
 
     public DynamicImage createDynamicImage(int width, int height) {
@@ -349,30 +442,36 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
         return image;
     }
 
-    public void setClipRect(Rect rect) {
-        if(rect == null) {
-            GL11.glDisable(GL11.GL_SCISSOR_TEST);
-            hasScissor = false;
-        } else {
-            GL11.glScissor(viewportX + rect.getX()*RenderScale.scale, viewportY + getHeight() - rect.getBottom()*RenderScale.scale, rect.getWidth()*RenderScale.scale, rect.getHeight()*RenderScale.scale);
-            if(!hasScissor) {
-                GL11.glEnable(GL11.GL_SCISSOR_TEST);
-                hasScissor = true;
-            }
-        }
+    public void clipEnter(int x, int y, int w, int h) {
+        clipStack.push(x, y, w, h);
+        setClipRect();
+    }
+
+    public void clipEnter(Rect rect) {
+        clipStack.push(rect);
+        setClipRect();
+    }
+
+    public void clipLeave() {
+        clipStack.pop();
+        setClipRect();
+    }
+
+    public boolean clipIsEmpty() {
+        return clipStack.isClipEmpty();
     }
 
     public void setCursor(MouseCursor cursor) {
         try {
-            if(Mouse.isInsideWindow()) {
-                swCursor = null;
+            swCursor = null;
+            if(isMouseInsideWindow()) {
                 if(cursor instanceof LWJGLCursor) {
-                    Mouse.setNativeCursor(((LWJGLCursor)cursor).cursor);
+                    setNativeCursor(((LWJGLCursor)cursor).cursor);
                 } else if(cursor instanceof SWCursor) {
-                    Mouse.setNativeCursor(emptyCursor);
+                    setNativeCursor(emptyCursor);
                     swCursor = (SWCursor)cursor;
                 } else {
-                    Mouse.setNativeCursor(null);
+                    setNativeCursor(null);
                 }
             }
         } catch(LWJGLException ex) {
@@ -412,6 +511,15 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
 
     public void popGlobalTintColor() {
         tintStack = tintStack.pop();
+    }
+    
+    /**
+     * Pushes a white entry on the tint stack which ignores the previous
+     * tint color. It must be removed by calling {@link #popGlobalTintColor()}.
+     * <p>This is useful when rendering to texture</p>
+     */
+    public void pushGlobalTintColorReset() {
+        tintStack = tintStack.pushReset();
     }
 
     /**
@@ -473,11 +581,58 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
         GL11.glVertex2f(x1 + dx + dy, y1 + dy - dx);
     }
 
+    protected void prepareForRendering() {
+        hasScissor = false;
+        tintStack = tintStateRoot;
+        clipStack.clearStack();
+    }
+
+    protected void renderSWCursor() {
+        if(swCursor != null) {
+            tintStack = tintStateRoot;
+            swCursor.render(mouseX, mouseY);
+        }
+    }
+    
+    protected void setNativeCursor(Cursor cursor) throws LWJGLException {
+        Mouse.setNativeCursor(cursor);
+    }
+    
+    protected boolean isMouseInsideWindow() {
+        return Mouse.isInsideWindow();
+    }
+
     protected void getTintedColor(Color color, float[] result) {
         result[0] = tintStack.r*(color.getR()&255);
         result[1] = tintStack.g*(color.getG()&255);
         result[2] = tintStack.b*(color.getB()&255);
         result[3] = tintStack.a*(color.getA()&255);
+    }
+    
+    /**
+     * Computes the tinted color from the given color.
+     * @param color the input color in RGBA order, value range is 0.0 (black) to 255.0 (white).
+     * @param result the tinted color in RGBA order, can be the same array as color.
+     */
+    protected void getTintedColor(float[] color, float[] result) {
+        result[0] = tintStack.r*color[0];
+        result[1] = tintStack.g*color[1];
+        result[2] = tintStack.b*color[2];
+        result[3] = tintStack.a*color[3];
+    }
+
+    public void setClipRect() {
+        final Rect rect = clipRectTemp;
+        if(clipStack.getClipRect(rect)) {
+            GL11.glScissor(viewportX + rect.getX()*RenderScale.scale, viewportBottom - rect.getBottom()*RenderScale.scale, rect.getWidth()*RenderScale.scale, rect.getHeight()*RenderScale.scale);
+            if(!hasScissor) {
+                GL11.glEnable(GL11.GL_SCISSOR_TEST);
+                hasScissor = true;
+            }
+        } else if(hasScissor) {
+            GL11.glDisable(GL11.GL_SCISSOR_TEST);
+            hasScissor = false;
+        }
     }
 
     Logger getLogger() {

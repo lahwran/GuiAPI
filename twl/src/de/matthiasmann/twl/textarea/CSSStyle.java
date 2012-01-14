@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2011, Matthias Mann
  *
  * All rights reserved.
  *
@@ -29,6 +29,7 @@
  */
 package de.matthiasmann.twl.textarea;
 
+import de.matthiasmann.twl.Color;
 import de.matthiasmann.twl.utils.ParameterStringParser;
 import de.matthiasmann.twl.utils.TextUtil;
 import java.util.HashMap;
@@ -78,11 +79,11 @@ public class CSSStyle extends Style {
             return;
         }
         if("text-indent".equals(key)) {
-            parseValueUnit(StyleAttribute.TEXT_IDENT, value);
+            parseValueUnit(StyleAttribute.TEXT_INDENT, value);
             return;
         }
-        if("font-family".equals(key) || "font".equals(key)) {
-            put(StyleAttribute.FONT_NAME, value);
+        if("font-family".equals(key) || "font".equals(key) || "-twl-font".equals(key)) {
+            put(StyleAttribute.FONT_NAME, stripQuotes(value.trim()));
             return;
         }
         if("text-align".equals(key)) {
@@ -131,6 +132,14 @@ public class CSSStyle extends Style {
         }
         if("background-image".equals(key)) {
             parseURL(StyleAttribute.BACKGROUND_IMAGE, value);
+            return;
+        }
+        if("background-color".equals(key) || "-twl-background-color".equals(key)) {
+            parseColor(StyleAttribute.BACKGROUND_COLOR, value);
+            return;
+        }
+        if("color".equals(key)) {
+            parseColor(StyleAttribute.COLOR, value);
             return;
         }
         throw new IllegalArgumentException("Unsupported key: " + key);
@@ -231,12 +240,64 @@ public class CSSStyle extends Style {
     private void parseURL(StyleAttribute<String> attribute, String value) {
         if(value.startsWith("url(") && value.endsWith(")")) {
             value = value.substring(4, value.length() - 1).trim();
-            if((value.startsWith("\"") && value.endsWith("\"")) ||
-                    (value.startsWith("'") && value.endsWith("'"))) {
-                value = value.substring(1, value.length() - 1);
-            }
+            value = stripQuotes(value);
         }
         put(attribute, value);
+    }
+
+    private String stripQuotes(String value) {
+        if((value.startsWith("\"") && value.endsWith("\"")) ||
+                (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.substring(1, value.length() - 1);
+        }
+        return value;
+    }
+
+    private void parseColor(StyleAttribute<Color> attribute, String value) {
+        Color color;
+        if(value.startsWith("rgb(") && value.endsWith(")")) {
+            value = value.substring(4, value.length() - 1).trim();
+            byte[] rgb = parseRGBA(value, 3);
+            color = new Color(rgb[0], rgb[1], rgb[2], (byte)255);
+        } else if(value.startsWith("rgba(") && value.endsWith(")")) {
+            value = value.substring(5, value.length() - 1).trim();
+            byte[] rgba = parseRGBA(value, 4);
+            color = new Color(rgba[0], rgba[1], rgba[2], rgba[3]);
+        } else {
+            color = Color.parserColor(value);
+            if(color == null) {
+                throw new IllegalArgumentException("unknown color name: " + value);
+            }
+        }
+        put(attribute, color);
+    }
+    
+    private byte[] parseRGBA(String value, int numElements) {
+        String[] parts = value.split(",");
+        if(parts.length != numElements) {
+            throw new IllegalArgumentException("3 values required for rgb()");
+        }
+        byte[] rgba = new byte[numElements];
+        for(int i=0 ; i<numElements ; i++) {
+            String part = parts[i].trim();
+            int v;
+            if(i == 3) {
+                // handle alpha component specially
+                float f = Float.parseFloat(part);
+                v = Math.round(f * 255.0f);
+            } else {
+                boolean percent = part.endsWith("%");
+                if(percent) {
+                    part = part.substring(0, part.length()-1).trim();
+                }
+                v = Integer.parseInt(part);
+                if(percent) {
+                    v = 255*v / 100;
+                }
+            }
+            rgba[i] = (byte)Math.max(0, Math.min(255, v));
+        }
+        return rgba;
     }
     
     static final HashMap<String, Boolean> PRE = new HashMap<String, Boolean>();

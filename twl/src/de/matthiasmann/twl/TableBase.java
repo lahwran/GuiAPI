@@ -36,6 +36,7 @@ import de.matthiasmann.twl.model.TreeTableNode;
 import de.matthiasmann.twl.renderer.AnimationState.StateKey;
 import de.matthiasmann.twl.renderer.Image;
 import de.matthiasmann.twl.renderer.MouseCursor;
+import de.matthiasmann.twl.renderer.Renderer;
 import de.matthiasmann.twl.utils.CallbackSupport;
 import de.matthiasmann.twl.utils.SizeSequence;
 import de.matthiasmann.twl.utils.SparseGrid;
@@ -188,6 +189,7 @@ public abstract class TableBase extends Widget implements ScrollPane.Scrollable,
     public static final StateKey STATE_ROW_SELECTED = StateKey.get("rowSelected");
     public static final StateKey STATE_ROW_HOVER = StateKey.get("rowHover");
     public static final StateKey STATE_ROW_DROPTARGET = StateKey.get("rowDropTarget");
+    public static final StateKey STATE_ROW_ODD = StateKey.get("rowOdd");
     public static final StateKey STATE_LEAD_ROW = StateKey.get("leadRow");
     public static final StateKey STATE_SELECTED = StateKey.get("selected");
     public static final StateKey STATE_SORT_ASCENDING  = StateKey.get("sortAscending");
@@ -220,6 +222,7 @@ public abstract class TableBase extends Widget implements ScrollPane.Scrollable,
     protected MouseCursor columnResizeCursor;
     protected MouseCursor normalCursor;
     protected MouseCursor dragNotPossibleCursor;
+    protected boolean ensureColumnHeaderMinWidth;
 
     protected int numRows;
     protected int numColumns;
@@ -621,6 +624,7 @@ public abstract class TableBase extends Widget implements ScrollPane.Scrollable,
         this.defaultColumnWidth = themeInfo.getParameter("columnHeaderWidth", 256);
         this.columnHeaderHeight = themeInfo.getParameter("columnHeaderHeight", 10);
         this.columnDividerDragableDistance = themeInfo.getParameter("columnDividerDragableDistance", 3);
+        this.ensureColumnHeaderMinWidth = themeInfo.getParameter("ensureColumnHeaderMinWidth", false);
         
         for(CellRenderer cellRenderer : cellRenderers.getUniqueValues()) {
             applyCellRendererTheme(cellRenderer);
@@ -784,8 +788,9 @@ public abstract class TableBase extends Widget implements ScrollPane.Scrollable,
         final int innerHeight = getInnerHeight() - columnHeaderHeight;
         final int offsetX = getOffsetX();
         final int offsetY = getOffsetY();
+        final Renderer renderer = gui.getRenderer();
 
-        gui.clipEnter(innerX, innerY, innerWidth, innerHeight);
+        renderer.clipEnter(innerX, innerY, innerWidth, innerHeight);
         try {
             final AnimationState animState = getAnimationState();
             final int leadRow;
@@ -866,7 +871,7 @@ public abstract class TableBase extends Widget implements ScrollPane.Scrollable,
                 imageRowDropMarker.draw(animState, getOffsetX(), getOffsetY() + y, columnModel.getEndPosition(), 1);
             }
         } finally {
-            gui.clipLeave();
+            renderer.clipLeave();
         }
     }
 
@@ -887,6 +892,7 @@ public abstract class TableBase extends Widget implements ScrollPane.Scrollable,
                     lastMouseY >= curY && lastMouseY < (curY + curRowHeight));
             animState.setAnimationState(STATE_LEAD_ROW, row == leadRow);
             animState.setAnimationState(STATE_ROW_DROPTARGET, !dropMarkerBeforeRow && row == dropMarkerRow);
+            animState.setAnimationState(STATE_ROW_ODD, (row & 1) == 1);
             img.draw(animState, x, curY, width, curRowHeight);
 
             rowStartPos = rowEndPos;
@@ -1231,7 +1237,7 @@ public abstract class TableBase extends Widget implements ScrollPane.Scrollable,
                 if(lastMouseRow != -1 || lastMouseColumn != -1) {
                     lastMouseRow = -1;
                     lastMouseColumn = -1;
-                    updateTooltip();
+                    resetTooltip();
                 }
             } else {
                 final int row = getRowUnderMouse(evt.getMouseY());
@@ -1240,7 +1246,7 @@ public abstract class TableBase extends Widget implements ScrollPane.Scrollable,
                 if(lastMouseRow != row || lastMouseColumn != column) {
                     lastMouseRow = row;
                     lastMouseColumn = column;
-                    updateTooltip();
+                    resetTooltip();
                 }
             }
         }
@@ -1613,6 +1619,9 @@ public abstract class TableBase extends Widget implements ScrollPane.Scrollable,
                 width = clampColumnWidth(columnHeaders[index].springWidth);
             } else {
                 width = computePreferredColumnWidth(index);
+                if(ensureColumnHeaderMinWidth) {
+                    width = Math.max(width, columnHeaders[index].getMinWidth());
+                }
             }
             return setSize(index, width);
         }
@@ -1715,6 +1724,17 @@ public abstract class TableBase extends Widget implements ScrollPane.Scrollable,
                 mouseLeftTableArea();
             }
             return super.handleEvent(evt);
+        }
+
+        @Override
+        protected void paintWidget(GUI gui) {
+            Renderer renderer = gui.getRenderer();
+            renderer.clipEnter(getX(), getY(), getWidth(), getHeight());
+            try {
+                paintLabelText(getAnimationState());
+            } finally {
+                renderer.clipLeave();
+            }
         }
 
         public void run() {

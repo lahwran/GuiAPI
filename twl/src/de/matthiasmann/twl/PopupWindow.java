@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2011, Matthias Mann
  *
  * All rights reserved.
  *
@@ -56,13 +56,14 @@ package de.matthiasmann.twl;
  * @see #openPopup()
  * @see #layoutChildrenFullInnerArea()
  */
-public class PopupWindow extends Widget {
+public class PopupWindow extends Container {
 
     private final Widget owner;
 
     private boolean closeOnClickedOutside = true;
     private boolean closeOnEscape = true;
-
+    private Runnable requestCloseCallback;
+    
     /**
      * Creates a new pop-up window.
      *
@@ -111,6 +112,20 @@ public class PopupWindow extends Widget {
         this.closeOnEscape = closeOnEscape;
     }
 
+    public Runnable getRequestCloseCallback() {
+        return requestCloseCallback;
+    }
+
+    /**
+     * Sets a callback to be called when {@link #requestPopupClose()} is executed.
+     * This will override the default behavior of closing the popup.
+     * 
+     * @param requestCloseCallback the new callback or null
+     */
+    public void setRequestCloseCallback(Runnable requestCloseCallback) {
+        this.requestCloseCallback = requestCloseCallback;
+    }
+    
     /**
      * Opens the pop-up window with it's current size and position.
      * In order for this to work the owner must be part of the GUI tree.
@@ -225,16 +240,6 @@ public class PopupWindow extends Widget {
     }
 
     @Override
-    public int getPreferredInnerWidth() {
-        return BoxLayout.computePreferredWidthVertical(this);
-    }
-
-    @Override
-    public int getPreferredInnerHeight() {
-        return BoxLayout.computePreferredHeightHorizontal(this);
-    }
-
-    @Override
     public int getPreferredWidth() {
         int parentWidth = (getParent() != null) ? getParent().getInnerWidth() : Short.MAX_VALUE;
         return Math.min(parentWidth, super.getPreferredWidth());
@@ -245,12 +250,14 @@ public class PopupWindow extends Widget {
         int parentHeight = (getParent() != null) ? getParent().getInnerHeight() : Short.MAX_VALUE;
         return Math.min(parentHeight, super.getPreferredHeight());
     }
-
-    @Override
-    protected void layout() {
-        layoutChildrenFullInnerArea();
-    }
     
+    /**
+     * This method is final to ensure correct event handling for pop-ups.
+     * To customize the event handling override the {@link #handleEventPopup(de.matthiasmann.twl.Event) }.
+     * 
+     * @param evt the event
+     * @return always returns true
+     */
     @Override
     protected final boolean handleEvent(Event evt) {
         if(handleEventPopup(evt)) {
@@ -271,6 +278,14 @@ public class PopupWindow extends Widget {
         return true;
     }
 
+    /**
+     * This method can be overriden to customize the event handling of a
+     * pop-up window.
+     * <p>The default implementation calls {@link Widget#handleEvent(de.matthiasmann.twl.Event) }</p>
+     * 
+     * @param evt the event
+     * @return true if the event has been handled, false otherwise.
+     */
     protected boolean handleEventPopup(Event evt) {
         return super.handleEvent(evt);
     }
@@ -285,11 +300,18 @@ public class PopupWindow extends Widget {
      * Also called by the default implementation of {@code mouseClickedOutside}
      * when {@code closeOnClickedOutside} is active.
      *
+     * <p>By default it calls {@link #closePopup() } except when a
+     * {@link #setRequestCloseCallback(java.lang.Runnable) } had been set.</p>
+     * 
      * @see #setCloseOnEscape(boolean)
      * @see #mouseClickedOutside(de.matthiasmann.twl.Event)
      */
     protected void requestPopupClose() {
-        closePopup();
+        if(requestCloseCallback != null) {
+            requestCloseCallback.run();
+        } else {
+            closePopup();
+        }
     }
 
     /**

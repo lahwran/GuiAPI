@@ -29,9 +29,11 @@
  */
 package de.matthiasmann.twl;
 
+import de.matthiasmann.twl.model.IntegerModel;
 import de.matthiasmann.twl.utils.CallbackSupport;
 import de.matthiasmann.twl.model.ListModel;
 import de.matthiasmann.twl.model.ListModel.ChangeListener;
+import de.matthiasmann.twl.model.ListSelectionModel;
 import de.matthiasmann.twl.renderer.AnimationState.StateKey;
 
 /**
@@ -47,7 +49,7 @@ public class ListBox<T> extends Widget {
      * @see #setSelected(int)
      * @see #setSelected(int, boolean)
      */
-    public static final int NO_SELECTION = -1;
+    public static final int NO_SELECTION = ListSelectionModel.NO_SELECTION;
     public static final int DEFAULT_CELL_HEIGHT = 20;
     public static final int SINGLE_COLUMN = -1;
     
@@ -75,17 +77,21 @@ public class ListBox<T> extends Widget {
     private final Scrollbar scrollbar;
     private ListBoxDisplay[] labels;
     private ListModel<T> model;
+    private IntegerModel selectionModel;
+    private Runnable selectionModelCallback;
     private int cellHeight = DEFAULT_CELL_HEIGHT;
     private int cellWidth = SINGLE_COLUMN;
     private boolean rowMajor = true;
     private boolean fixedCellWidth;
     private boolean fixedCellHeight;
+    private int minDisplayedRows = 1;
 
     private int numCols = 1;
     private int firstVisible;
     private int selected = NO_SELECTION;
     private int numEntries;
     private boolean needUpdate;
+    private boolean inSetSelected;
     private CallbackWithReason<?>[] callbacks;
     
     public ListBox() {
@@ -109,6 +115,12 @@ public class ListBox<T> extends Widget {
         setModel(model);
     }
 
+    @SuppressWarnings("OverridableMethodCallInConstructor")
+    public ListBox(ListSelectionModel<T> model) {
+        this();
+        setModel(model);
+    }
+
     public ListModel<T> getModel() {
         return model;
     }
@@ -123,6 +135,40 @@ public class ListBox<T> extends Widget {
                 model.addChangeListener(modelCallback);
             }
             modelCallback.allChanged();
+        }
+    }
+
+    public IntegerModel getSelectionModel() {
+        return selectionModel;
+    }
+
+    public void setSelectionModel(IntegerModel selectionModel) {
+        if(this.selectionModel != selectionModel) {
+            if(this.selectionModel != null) {
+                this.selectionModel.removeCallback(selectionModelCallback);
+            }
+            this.selectionModel = selectionModel;
+            if(selectionModel != null) {
+                if(selectionModelCallback == null) {
+                    selectionModelCallback = new Runnable() {
+                        public void run() {
+                            syncSelectionFromModel();
+                        }
+                    };
+                }
+                this.selectionModel.addCallback(selectionModelCallback);
+                syncSelectionFromModel();
+            }
+        }
+    }
+
+    public void setModel(ListSelectionModel<T> model) {
+        setSelectionModel(null);
+        if(model == null) {
+            setModel((ListModel<T>)null);
+        } else {
+            setModel(model.getListModel());
+            setSelectionModel(model);
         }
     }
 
@@ -220,7 +266,7 @@ public class ListBox<T> extends Widget {
      * Selects the specified entry and optionally scrolls to that entry
      *
      * @param selected the index or {@link #NO_SELECTION}
-     * @param scroll treu if it should scroll to make the entry visible
+     * @param scroll true if it should scroll to make the entry visible
      * @throws IllegalArgumentException if index is invalid
      */
     public void setSelected(int selected, boolean scroll) {
@@ -251,6 +297,14 @@ public class ListBox<T> extends Widget {
         }
         if(this.selected != selected) {
             this.selected = selected;
+            if(selectionModel != null) {
+                try {
+                    inSetSelected = true;
+                    selectionModel.setValue(selected);
+                } finally {
+                    inSetSelected = false;
+                }
+            }
             needUpdate = true;
             doCallback(reason);
         } else if(reason.actionRequested() || reason == CallbackReason.MOUSE_CLICK) {
@@ -341,6 +395,7 @@ public class ListBox<T> extends Widget {
         setRowMajor(themeInfo.getParameter("rowMajor", true));
         setFixedCellWidth(themeInfo.getParameter("fixedCellWidth", false));
         setFixedCellHeight(themeInfo.getParameter("fixedCellHeight", false));
+        minDisplayedRows = themeInfo.getParameter("minDisplayedRows", 1);
     }
 
     protected void goKeyboard(int dir) {
@@ -441,7 +496,12 @@ public class ListBox<T> extends Widget {
 
     @Override
     public int getMinHeight() {
-        return Math.max(super.getMinHeight(), scrollbar.getMinHeight());
+        int minHeight = Math.max(super.getMinHeight(), scrollbar.getMinHeight());
+        if(minDisplayedRows > 0) {
+            minHeight = Math.max(minHeight, getBorderVertical() +
+                    Math.min(numEntries, minDisplayedRows) * cellHeight);
+        }
+        return minHeight;
     }
 
     @Override
@@ -722,6 +782,12 @@ public class ListBox<T> extends Widget {
 
     void scrollbarChanged() {
         setFirstVisible(scrollbar.getValue() * numCols);
+    }
+
+    void syncSelectionFromModel() {
+        if(!inSetSelected) {
+            setSelected(selectionModel.getValue());
+        }
     }
 
     private class LImpl implements ChangeListener, Runnable {

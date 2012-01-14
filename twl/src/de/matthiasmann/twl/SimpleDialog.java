@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2011, Matthias Mann
  *
  * All rights reserved.
  *
@@ -44,6 +44,7 @@ public class SimpleDialog {
     private Object msg;
     private Runnable cbOk;
     private Runnable cbCancel;
+    private boolean focusCancelButton;
 
     public SimpleDialog() {
     }
@@ -114,6 +115,20 @@ public class SimpleDialog {
         this.cbCancel = cbCancel;
     }
 
+    public boolean isFocusCancelButton() {
+        return focusCancelButton;
+    }
+
+    /**
+     * Should the cancel button be focused when the dialog is created?
+     * Default is false (eg focus the message or the OK button).
+     * 
+     * @param focusCancelButton true to focus the cancel button
+     */
+    public void setFocusCancelButton(boolean focusCancelButton) {
+        this.focusCancelButton = focusCancelButton;
+    }
+
     /**
      * Shows the dialog centered
      *
@@ -155,9 +170,12 @@ public class SimpleDialog {
         btnOk.setTheme("btnOk");
         btnOk.addCallback(new ButtonCB(popupWindow, cbOk));
 
+        ButtonCB btnCancelCallback = new ButtonCB(popupWindow, cbCancel);
+        popupWindow.setRequestCloseCallback(btnCancelCallback);
+        
         Button btnCancel = new Button("Cancel");
         btnCancel.setTheme("btnCancel");
-        btnCancel.addCallback(new ButtonCB(popupWindow, cbCancel));
+        btnCancel.addCallback(btnCancelCallback);
 
         DialogLayout layout = new DialogLayout();
         layout.setTheme("content");
@@ -198,7 +216,9 @@ public class SimpleDialog {
         popupWindow.add(layout);
         popupWindow.openPopupCentered();
 
-        if(msgWidget != null && msgWidget.canAcceptKeyboardFocus()) {
+        if(focusCancelButton) {
+            btnCancel.requestKeyboardFocus();
+        } else if(msgWidget != null && msgWidget.canAcceptKeyboardFocus()) {
             msgWidget.requestKeyboardFocus();
         }
 

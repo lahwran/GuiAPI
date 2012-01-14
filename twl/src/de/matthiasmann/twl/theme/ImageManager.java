@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2011, Matthias Mann
  *
  * All rights reserved.
  *
@@ -36,6 +36,7 @@ import de.matthiasmann.twl.renderer.Image;
 import de.matthiasmann.twl.renderer.Renderer;
 import de.matthiasmann.twl.renderer.Texture;
 import de.matthiasmann.twl.utils.StateExpression;
+import de.matthiasmann.twl.utils.StateSelect;
 import de.matthiasmann.twl.utils.TextUtil;
 import de.matthiasmann.twl.utils.XMLParser;
 import java.io.IOException;
@@ -54,6 +55,7 @@ import org.xmlpull.v1.XmlPullParserException;
  */
 class ImageManager {
 
+    private final ParameterMapImpl constants;
     private final Renderer renderer;
     private final TreeMap<String, Image> images;
     private final TreeMap<String, MouseCursor> cursors;
@@ -61,13 +63,16 @@ class ImageManager {
     private Texture currentTexture;
     
     static final EmptyImage NONE = new EmptyImage(0, 0);
+    static final MouseCursor NOCURSOR = new MouseCursor() {};
     
-    ImageManager(Renderer renderer) {
+    ImageManager(ParameterMapImpl constants, Renderer renderer) {
+        this.constants = constants;
         this.renderer = renderer;
         this.images = new TreeMap<String, Image>();
         this.cursors = new TreeMap<String, MouseCursor>();
 
         images.put("none", NONE);
+        cursors.put("os-default", NOCURSOR);
     }
 
     Image getImage(String name) {
@@ -91,23 +96,23 @@ class ImageManager {
     }
 
     MouseCursor getReferencedCursor(XMLParser xmlp, String ref) throws XmlPullParserException {
-        MouseCursor cursor = getCursor(ref);
+        MouseCursor cursor = cursors.get(ref);
         if(cursor == null) {
             throw xmlp.error("referenced cursor \"" + ref + "\" not found");
         }
-        return cursor;
+        return unwrapCursor(cursor);
     }
 
     Map<String, Image> getImages(String ref, String name) {
-        return ParserUtil.resolve(images, ref, name);
+        return ParserUtil.resolve(images, ref, name, null);
     }
 
     public MouseCursor getCursor(String name) {
-        return cursors.get(name);
+        return unwrapCursor(cursors.get(name));
     }
 
     Map<String, MouseCursor> getCursors(String ref, String name) {
-        return ParserUtil.resolve(cursors, ref, name);
+        return ParserUtil.resolve(cursors, ref, name, NOCURSOR);
     }
 
     void parseImages(XMLParser xmlp, URL baseUrl) throws XmlPullParserException, IOException {
@@ -156,6 +161,10 @@ class ImageManager {
         }
     }
 
+    private MouseCursor unwrapCursor(MouseCursor cursor) {
+        return (cursor == NOCURSOR) ? null : cursor;
+    }
+    
     private void checkImageName(String name, XMLParser xmlp) throws XmlPullParserException, XmlPullParserException {
         ParserUtil.checkNameNotEmpty(name, xmlp);
         if(images.containsKey(name)) {
@@ -175,6 +184,9 @@ class ImageManager {
         MouseCursor cursor;
         if(ref != null) {
             cursor = cursors.get(ref);
+            if(cursor == null) {
+                throw xmlp.error("referenced cursor \"" + ref + "\" not found");
+            }
         } else {
             ImageParams imageParams = new ImageParams();
             parseRectFromAttribute(xmlp, imageParams);
@@ -187,10 +199,11 @@ class ImageManager {
                 imageRef = getReferencedImage(xmlp, imageRefStr);
             }
             cursor = currentTexture.createCursor(imageParams.x, imageParams.y, imageParams.w, imageParams.h, hotSpotX, hotSpotY, imageRef);
+            if(cursor == null) {
+                cursor = NOCURSOR;
+            }
         }
-        if(cursor != null) {
-            cursors.put(name, cursor);
-        }
+        cursors.put(name, cursor);
         xmlp.nextTag();
     }
 
@@ -289,15 +302,14 @@ class ImageManager {
         if(conditions.size() < 1) {
             throw xmlp.error("state select image needs atleast 1 condition");
         }
-        Image image = new StateSelectImage(
-                stateImages.toArray(new Image[stateImages.size()]),
-                conditions.toArray(new StateExpression[conditions.size()]),
-                params.border);
+        StateSelect select = new StateSelect(conditions.toArray(new StateExpression[conditions.size()]));
+        Image image = new StateSelectImage(stateImages.toArray(new Image[stateImages.size()]), select, params.border);
         return image;
     }
 
     private Image parseArea(XMLParser xmlp, ImageParams params) throws IOException, XmlPullParserException {
         parseRectFromAttribute(xmlp, params);
+        parseRotationFromAttribute(xmlp, params);
         boolean tiled = xmlp.parseBoolFromAttribute("tiled", false);
         final int[] splitx = parseSplit2(xmlp, "splitx", Math.abs(params.w));
         final int[] splity = parseSplit2(xmlp, "splity", Math.abs(params.h));
@@ -307,7 +319,7 @@ class ImageManager {
             final int columns = (splitx != null) ? 3 : 1;
             final int rows = (splity != null) ? 3 : 1;
             final Image[] imageParts = new Image[columns * rows];
-            for(int r=0,idx=0 ; r<rows ; r++) {
+            for(int r=0 ; r<rows ; r++) {
                 final int imgY, imgH;
                 if(splity != null) {
                     imgY = params.y + splity[r];
@@ -316,7 +328,7 @@ class ImageManager {
                     imgY = params.y;
                     imgH = params.h;
                 }
-                for(int c=0 ; c<columns ; c++,idx++) {
+                for(int c=0 ; c<columns ; c++) {
                     final int imgX, imgW;
                     if(splitx != null) {
                         imgX = params.x + splitx[c];
@@ -327,19 +339,48 @@ class ImageManager {
                     }
 
                     boolean isCenter = (r == rows/2) && (c == columns/2);
+                    Image img;
                     if(noCenter && isCenter) {
-                        imageParts[idx] = new EmptyImage(imgW, imgH);
+                        img = new EmptyImage(imgW, imgH);
                     } else {
-                        imageParts[idx] = createImage(xmlp, imgX, imgY, imgW, imgH, params.tintColor, isCenter & tiled);
+                        img = createImage(xmlp, imgX, imgY, imgW, imgH, params.tintColor, isCenter & tiled, params.rot);
                     }
+                    int idx;
+                    switch(params.rot) {
+                        default:
+                            idx = r*columns + c;
+                            break;
+                        case CLOCKWISE_90:
+                            idx = c*rows + (rows-1-r);
+                            break;
+                        case CLOCKWISE_180:
+                            idx = (rows-1-r)*columns + (columns-1-c);
+                            break;
+                        case CLOCKWISE_270:
+                            idx = (columns-1-c)*rows + r;
+                            break;
+                            
+                    }
+                    imageParts[idx] = img;
                 }
             }
-            image = new GridImage(imageParts,
-                    (splitx != null) ? SPLIT_WEIGHTS_3 : SPLIT_WEIGHTS_1,
-                    (splity != null) ? SPLIT_WEIGHTS_3 : SPLIT_WEIGHTS_1,
-                    params.border);
+            switch(params.rot) {
+                case CLOCKWISE_90:
+                case CLOCKWISE_270:
+                    image = new GridImage(imageParts,
+                            (splity != null) ? SPLIT_WEIGHTS_3 : SPLIT_WEIGHTS_1,
+                            (splitx != null) ? SPLIT_WEIGHTS_3 : SPLIT_WEIGHTS_1,
+                            params.border);
+                    break;
+                default:
+                    image = new GridImage(imageParts,
+                            (splitx != null) ? SPLIT_WEIGHTS_3 : SPLIT_WEIGHTS_1,
+                            (splity != null) ? SPLIT_WEIGHTS_3 : SPLIT_WEIGHTS_1,
+                            params.border);
+                    break;
+            }
         } else {
-            image = createImage(xmlp, params.x, params.y, params.w, params.h, params.tintColor, tiled);
+            image = createImage(xmlp, params.x, params.y, params.w, params.h, params.tintColor, tiled, params.rot);
         }
         xmlp.nextTag();
         params.tintColor = null;
@@ -462,7 +503,7 @@ class ImageManager {
 
     private AnimParams parseAnimParams(XMLParser xmlp) throws XmlPullParserException {
         AnimParams params = new AnimParams();
-        params.tintColor = ParserUtil.parseColorFromAttribute(xmlp, "tint", Color.WHITE);
+        params.tintColor = ParserUtil.parseColorFromAttribute(xmlp, "tint", constants, Color.WHITE);
         float zoom = xmlp.parseFloatFromAttribute("zoom", 1.0f);
         params.zoomX = xmlp.parseFloatFromAttribute("zoomX", zoom);
         params.zoomY = xmlp.parseFloatFromAttribute("zoomY", zoom);
@@ -474,6 +515,7 @@ class ImageManager {
     private void parseAnimFrames(XMLParser xmlp, ArrayList<AnimatedImage.Element> frames) throws XmlPullParserException, IOException {
         ImageParams params = new ImageParams();
         parseRectFromAttribute(xmlp, params);
+        parseRotationFromAttribute(xmlp, params);
         int duration = xmlp.parseIntFromAttribute("duration");
         if(duration < 1) {
             throw new IllegalArgumentException("duration must be >= 1 ms");
@@ -489,7 +531,7 @@ class ImageManager {
             throw new IllegalArgumentException("offsets required for multiple frames");
         }
         for(int i=0 ; i<count ; i++) {
-            Image image = createImage(xmlp, params.x, params.y, params.w, params.h, Color.WHITE, false);
+            Image image = createImage(xmlp, params.x, params.y, params.w, params.h, Color.WHITE, false, params.rot);
             AnimatedImage.Img img = new AnimatedImage.Img(duration, image, animParams.tintColor,
                     animParams.zoomX, animParams.zoomY, animParams.zoomCenterX, animParams.zoomCenterY);
             frames.add(img);
@@ -565,36 +607,28 @@ class ImageManager {
         }
     }
 
-    private Image createImage(XMLParser xmlp, int x, int y, int w, int h, Color tintColor, boolean tiled) {
+    private Image createImage(XMLParser xmlp, int x, int y, int w, int h, Color tintColor, boolean tiled, Texture.Rotation rotation) {
         if(w == 0 || h == 0) {
             return new EmptyImage(Math.abs(w), Math.abs(h));
-        }
-
-        // adjust position for flip
-        if(w < 0) {
-            x -= w;
-        }
-        if(h < 0) {
-            y -= h;
         }
 
         final Texture texture = currentTexture;
         final int texWidth = texture.getWidth();
         final int texHeight = texture.getHeight();
 
-        int x1 = x + w;
-        int y1 = y + h;
+        int x1 = x + Math.abs(w);
+        int y1 = y + Math.abs(h);
 
-        if(x < 0 || x > texWidth || x1 < 0 || x1 > texWidth ||
-                y < 0 || y > texHeight || y1 < 0 || y1 > texHeight) {
+        if(x < 0 || x >= texWidth || x1 < 0 || x1 > texWidth ||
+                y < 0 || y >= texHeight || y1 < 0 || y1 > texHeight) {
             getLogger().log(Level.WARNING, "texture partly outside of file: {0}", xmlp.getPositionDescription());
             x = Math.max(0, Math.min(x, texWidth));
-            w = Math.max(0, Math.min(x1, texWidth)) - x;
             y = Math.max(0, Math.min(y, texHeight));
-            h = Math.max(0, Math.min(y1, texHeight)) - y;
+            w = Integer.signum(w) * (Math.max(0, Math.min(x1, texWidth)) - x);
+            h = Integer.signum(h) * (Math.max(0, Math.min(y1, texHeight)) - y);
         }
         
-        return texture.getImage(x, y, w, h, tintColor, tiled);
+        return texture.getImage(x, y, w, h, tintColor, tiled, rotation);
     }
     
     private void parseRectFromAttribute(XMLParser xmlp, ImageParams params) throws XmlPullParserException {
@@ -620,9 +654,24 @@ class ImageManager {
             throw xmlp.error("can't parse xywh argument", ex);
         }
     }
+    
+    private void parseRotationFromAttribute(XMLParser xmlp, ImageParams params) throws XmlPullParserException {
+        if(currentTexture == null) {
+            throw xmlp.error("can't create area outside of <imagefile> object");
+        }
+        int rot = xmlp.parseIntFromAttribute("rot", 0);
+        switch(rot) {
+            case 0: params.rot = Texture.Rotation.NONE; break;
+            case 90: params.rot = Texture.Rotation.CLOCKWISE_90; break;
+            case 180: params.rot = Texture.Rotation.CLOCKWISE_180; break;
+            case 270: params.rot = Texture.Rotation.CLOCKWISE_270; break;
+            default:
+                throw xmlp.error("invalid rotation angle");
+        }
+    }
 
     private void parseStdAttributes(XMLParser xmlp, ImageParams params) throws XmlPullParserException {
-        params.tintColor = ParserUtil.parseColorFromAttribute(xmlp, "tint", null);
+        params.tintColor = ParserUtil.parseColorFromAttribute(xmlp, "tint", constants, null);
         params.border = ParserUtil.parseBorderFromAttribute(xmlp, "border");
         params.inset = ParserUtil.parseBorderFromAttribute(xmlp, "inset");
         params.repeatX = xmlp.parseBoolFromAttribute("repeatX", false);
@@ -647,6 +696,7 @@ class ImageManager {
         int sizeOverwriteV = -1;
         boolean center;
         StateExpression condition;
+        Texture.Rotation rot;
     }
     
     static class AnimParams {

@@ -32,6 +32,7 @@ package de.matthiasmann.twl.textarea;
 import de.matthiasmann.twl.model.HasCallback;
 import de.matthiasmann.twl.utils.MultiStringReader;
 import de.matthiasmann.twl.utils.TextUtil;
+import de.matthiasmann.twl.utils.XMLParser;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -45,7 +46,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
-import org.xmlpull.v1.XmlPullParserFactory;
 
 /**
  * A simple XHTML parser.
@@ -120,6 +120,7 @@ public class HTMLTextAreaModel extends HasCallback implements TextAreaModel {
      * @param html the HTML to parse
      * @see #setHtml(java.lang.String)
      */
+    @SuppressWarnings("OverridableMethodCallInConstructor")
     public HTMLTextAreaModel(String html) {
         this();
         setHtml(html);
@@ -133,6 +134,7 @@ public class HTMLTextAreaModel extends HasCallback implements TextAreaModel {
      * @param r the reader to parse html from
      * @throws IOException if an error occured while reading
      */
+    @SuppressWarnings("OverridableMethodCallInConstructor")
     public HTMLTextAreaModel(Reader r) throws IOException {
         this();
         parseXHTML(r);
@@ -225,10 +227,7 @@ public class HTMLTextAreaModel extends HasCallback implements TextAreaModel {
         this.title = null;
 
         try {
-            XmlPullParserFactory xppf = XmlPullParserFactory.newInstance();
-            xppf.setNamespaceAware(false);
-            xppf.setValidating(false);
-            XmlPullParser xpp = xppf.newPullParser();
+            XmlPullParser xpp = XMLParser.createParser();
             xpp.setInput(reader);
             xpp.defineEntityReplacementText("nbsp", "\u00A0");
             xpp.require(XmlPullParser.START_DOCUMENT, null, null);
@@ -305,7 +304,7 @@ public class HTMLTextAreaModel extends HasCallback implements TextAreaModel {
                     String btnName = TextUtil.notNull(xpp.getAttributeValue(null, "name"));
                     String btnParam = TextUtil.notNull(xpp.getAttributeValue(null, "value"));
                     element = new WidgetElement(style, btnName, btnParam);
-                } else if("ul".equals(name) || "h1".equals(name)) {
+                } else if("ul".equals(name)) {
                     ContainerElement ce = new ContainerElement(style);
                     parseContainer(xpp, ce);
                     element = ce;
@@ -318,7 +317,7 @@ public class HTMLTextAreaModel extends HasCallback implements TextAreaModel {
                     parseContainer(xpp, le);
                     element = le;
                     --level;
-                } else if("div".equals(name)) {
+                } else if("div".equals(name) || isHeading(name)) {
                     BlockElement be = new BlockElement(style);
                     parseContainer(xpp, be);
                     element = be;
@@ -508,6 +507,11 @@ public class HTMLTextAreaModel extends HasCallback implements TextAreaModel {
             return doc.startsWith("<?xml") || doc.startsWith("<!DOCTYPE") || doc.startsWith("<html>");
         }
         return false;
+    }
+    
+    private boolean isHeading(String name) {
+        return name.length() == 2 && name.charAt(0) == 'h' &&
+                (name.charAt(1) >= '0' && name.charAt(1) <= '6');
     }
     
     private boolean isPre() {

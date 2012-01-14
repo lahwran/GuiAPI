@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2011, Matthias Mann
  *
  * All rights reserved.
  *
@@ -31,6 +31,7 @@ package de.matthiasmann.twl;
 
 import de.matthiasmann.twl.model.AbstractFloatModel;
 import de.matthiasmann.twl.model.AbstractIntegerModel;
+import de.matthiasmann.twl.model.ColorModel;
 import de.matthiasmann.twl.model.ColorSpace;
 import de.matthiasmann.twl.renderer.DynamicImage;
 import de.matthiasmann.twl.renderer.Image;
@@ -64,12 +65,16 @@ public class ColorSelector extends DialogLayout {
     private boolean showRGBAdjuster = true;
     private boolean showAlphaAdjuster = true;
     private Runnable[] callbacks;
+    private ColorModel model;
+    private Runnable modelCallback;
+    private boolean inModelSetValue;
     int currentColor;
     private ARGBModel[] argbModels;
     EditField hexColorEditField;
     private TintAnimator previewTintAnimator;
     private boolean recreateLayout;
 
+    @SuppressWarnings("OverridableMethodCallInConstructor")
     public ColorSelector(ColorSpace colorSpace) {
         // allocate enough space for 2D color areas
         imgData = ByteBuffer.allocateDirect(IMAGE_SIZE * IMAGE_SIZE * 4);
@@ -106,12 +111,28 @@ public class ColorSelector extends DialogLayout {
         }
     }
 
+    public ColorModel getModel() {
+        return model;
+    }
+
+    public void setModel(ColorModel model) {
+        if(this.model != model) {
+            removeModelCallback();
+            this.model = model;
+            if(model != null) {
+                addModelCallback();
+                modelValueChanged();
+            }
+        }
+    }
+
     public Color getColor() {
         return new Color(currentColor);
     }
 
     public void setColor(Color color) {
         setColor(color.toARGB());
+        updateModel();
     }
 
     public void setDefaultColor() {
@@ -249,10 +270,22 @@ public class ColorSelector extends DialogLayout {
     public void removeCallback(Runnable cb) {
         callbacks = CallbackSupport.removeCallbackFromList(callbacks, cb);
     }
+    
+    protected void updateModel() {
+        if(model != null) {
+            inModelSetValue = true;
+            try {
+                model.setValue(getColor());
+            } finally {
+                inModelSetValue = false;
+            }
+        }
+    }
 
     protected void colorChanged() {
         currentColor = (currentColor & (0xFF << 24)) | colorSpace.toRGB(colorValues);
         CallbackSupport.fireCallbacks(callbacks);
+        updateModel();
         if(argbModels != null) {
             for(ARGBModel m : argbModels) {
                 m.fireCallback();
@@ -425,12 +458,7 @@ public class ColorSelector extends DialogLayout {
             previewArea.setTheme("colorarea");
             previewArea.setTintAnimator(previewTintAnimator);
 
-            Widget preview = new Widget() {
-                @Override
-                protected void layout() {
-                    layoutChildrenFullInnerArea();
-                }
-            };
+            Widget preview = new Container();
             preview.setTheme("preview");
             preview.add(previewArea);
             
@@ -482,6 +510,37 @@ public class ColorSelector extends DialogLayout {
                 cvm.fireCallback();
             }
             colorChanged();
+        }
+    }
+
+    @Override
+    protected void afterAddToGUI(GUI gui) {
+        super.afterAddToGUI(gui);
+        addModelCallback();
+    }
+
+    @Override
+    protected void beforeRemoveFromGUI(GUI gui) {
+        removeModelCallback();
+        super.beforeRemoveFromGUI(gui);
+    }
+    
+    private void removeModelCallback() {
+        if(model != null) {
+            model.removeCallback(modelCallback);
+        }
+    }
+    
+    private void addModelCallback() {
+        if(model != null && getGUI() != null) {
+            if(modelCallback == null) {
+                modelCallback = new Runnable() {
+                    public void run() {
+                        modelValueChanged();
+                    }
+                };
+            }
+            model.addCallback(modelCallback);
         }
     }
 
@@ -544,12 +603,19 @@ public class ColorSelector extends DialogLayout {
         }
     }
     
+    void modelValueChanged() {
+        if(!inModelSetValue && model != null) {
+            // don't call updateModel here
+            setColor(model.getValue().toARGB());
+        }
+    }
+    
     private static final int IMAGE_SIZE = 64;
 
     class ColorValueModel extends AbstractFloatModel {
         private final int component;
 
-        public ColorValueModel(int component) {
+        ColorValueModel(int component) {
             this.component = component;
         }
 
@@ -579,7 +645,7 @@ public class ColorSelector extends DialogLayout {
     class ARGBModel extends AbstractIntegerModel {
         private final int startBit;
 
-        public ARGBModel(int startBit) {
+        ARGBModel(int startBit) {
             this.startBit = startBit;
         }
 
@@ -668,7 +734,8 @@ public class ColorSelector extends DialogLayout {
     class ColorArea1D extends ColorArea {
         final int component;
 
-        public ColorArea1D(int component) {
+        @SuppressWarnings("LeakingThisInConstructor")
+        ColorArea1D(int component) {
             this.component = component;
 
             for(int i=0,n=getNumComponents() ; i<n ; i++) {
@@ -726,7 +793,8 @@ public class ColorSelector extends DialogLayout {
         private final int componentX;
         private final int componentY;
 
-        public ColorArea2D(int componentX, int componentY) {
+        @SuppressWarnings("LeakingThisInConstructor")
+        ColorArea2D(int componentX, int componentY) {
             this.componentX = componentX;
             this.componentY = componentY;
 

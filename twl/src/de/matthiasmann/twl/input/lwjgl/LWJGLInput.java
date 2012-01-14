@@ -65,7 +65,7 @@ public class LWJGLInput implements Input {
         if(Mouse.isCreated()) {
             while(Mouse.next()) {
                 gui.handleMouse(
-                        Mouse.getEventX()/RenderScale.scale, (gui.getHeight() - Mouse.getEventY() - 1)/RenderScale.scale,
+                		Mouse.getEventX()/RenderScale.scale, (gui.getHeight() - Mouse.getEventY() - 1)/RenderScale.scale,
                         Mouse.getEventButton(), Mouse.getEventButtonState());
 
                 int wheelDelta = Mouse.getEventDWheel();

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2011, Matthias Mann
  *
  * All rights reserved.
  *
@@ -31,6 +31,8 @@ package de.matthiasmann.twl;
 
 import de.matthiasmann.twl.model.BooleanModel;
 import de.matthiasmann.twl.renderer.AnimationState.StateKey;
+import de.matthiasmann.twl.utils.CallbackSupport;
+import de.matthiasmann.twl.utils.TypeMapping;
 import java.util.ArrayList;
 import java.util.Iterator;
 
@@ -43,8 +45,38 @@ public class Menu extends MenuElement implements Iterable<MenuElement> {
 
     public static final StateKey STATE_HAS_OPEN_MENUS = StateKey.get("hasOpenMenus");
     
+    public interface Listener {
+        /**
+         * Called before a menu popup is created.
+         * <p>This is only called once until all open popups are closed.</p>
+         * <p>When a menu is displayed as menu bar then no events are fired.</p>
+         * 
+         * @param menu the {@code Menu} which for which a popup will be opened
+         */
+        public void menuOpening(Menu menu);
+        
+        /**
+         * Called after a popup has been opened.
+         * <p>When a menu is displayed as menu bar then no events are fired.</p>
+         * 
+         * @param menu the {@code Menu} which has been opened
+         * @see #menuOpening(de.matthiasmann.twl.Menu) 
+         */
+        public void menuOpened(Menu menu);
+        
+        /**
+         * Called after a popup has been closed.
+         * <p>When a menu is displayed as menu bar then no events are fired.</p>
+         * 
+         * @param menu the {@code Menu} which has been closed
+         */
+        public void menuClosed(Menu menu);
+    }
+    
     private final ArrayList<MenuElement> elements = new ArrayList<MenuElement>();
+    private final TypeMapping<Alignment> classAlignments = new TypeMapping<Alignment>();
     private String popupTheme;
+    private Listener[] listeners;
 
     /**
      * Creates a new menu without name.
@@ -69,6 +101,14 @@ public class Menu extends MenuElement implements Iterable<MenuElement> {
     public Menu(String name) {
         super(name);
     }
+    
+    public void addListener(Listener listener) {
+        listeners = CallbackSupport.addCallbackToList(listeners, listener, Listener.class);
+    }
+    
+    public void removeListener(Listener listener) {
+        listeners = CallbackSupport.removeCallbackFromList(listeners, listener);
+    }
 
     /**
      * Returns the theme which is used when this menu is displayed as popup/sub menu.
@@ -89,7 +129,40 @@ public class Menu extends MenuElement implements Iterable<MenuElement> {
     }
 
     /**
-     * Returns a mutable iterator which iterators over all menu elements
+     * Sets the default alignment based on menu element subclasses.
+     * <p>By default all alignments are {@link Alignment#FILL}</p>
+     * 
+     * @param clazz the class for which a default alignment should be set
+     * @param value the alignment
+     */
+    public void setClassAlignment(Class<? extends MenuElement> clazz, Alignment value) {
+        if(value == null) {
+            throw new NullPointerException("value");
+        }
+        if(value == Alignment.FILL) {
+            classAlignments.remove(clazz);
+        } else {
+            classAlignments.put(clazz, value);
+        }
+    }
+
+    /**
+     * Retrieves the default alignment for the given menu element class.
+     * <p>By default all alignments are {@link Alignment#FILL}</p>
+     * 
+     * @param clazz the menu element class
+     * @return the alignment
+     */
+    public Alignment getClassAlignment(Class<? extends MenuElement> clazz) {
+        Alignment alignment = classAlignments.get(clazz);
+        if(alignment == null) {
+            return Alignment.FILL;
+        }
+        return alignment;
+    }
+    
+    /**
+     * Returns a mutable iterator which iterates over all menu elements
      * @return a iterator
      */
     public Iterator<MenuElement> iterator() {
@@ -175,7 +248,7 @@ public class Menu extends MenuElement implements Iterable<MenuElement> {
      * @see #createMenuBar()
      */
     public void createMenuBar(Widget container) {
-        MenuManager mm = new MenuManager(container, true);
+        MenuManager mm = createMenuManager(container, true);
         for(Widget w : createWidgets(mm, 0)) {
             container.add(w);
         }
@@ -191,12 +264,23 @@ public class Menu extends MenuElement implements Iterable<MenuElement> {
         DialogLayout l = new DialogLayout();
         setWidgetTheme(l, "menubar");
 
-        MenuManager mm = new MenuManager(l, true);
+        MenuManager mm = createMenuManager(l, true);
         Widget[] widgets = createWidgets(mm, 0);
 
         l.setHorizontalGroup(l.createSequentialGroup().addWidgetsWithGap("menuitem", widgets));
         l.setVerticalGroup(l.createParallelGroup(widgets));
 
+        for(int i=0,n=elements.size() ; i<n ; i++) {
+            MenuElement e = elements.get(i);
+            
+            Alignment alignment = e.getAlignment();
+            if(alignment == null) {
+                alignment = getClassAlignment(e.getClass());
+            }
+            
+            l.setWidgetAlignment(widgets[i], alignment);
+        }
+        
         l.getHorizontalGroup().addGap();
         return l;
     }
@@ -210,7 +294,7 @@ public class Menu extends MenuElement implements Iterable<MenuElement> {
      * @see MenuManager#closePopup() 
      */
     public MenuManager openPopupMenu(Widget parent) {
-        MenuManager mm = new MenuManager(parent, false);
+        MenuManager mm = createMenuManager(parent, false);
         mm.openSubMenu(0, this, parent, true);
         return mm;
     }
@@ -225,7 +309,7 @@ public class Menu extends MenuElement implements Iterable<MenuElement> {
      * @see MenuManager#closePopup()
      */
     public MenuManager openPopupMenu(Widget parent, int x, int y) {
-        MenuManager mm = new MenuManager(parent, false);
+        MenuManager mm = createMenuManager(parent, false);
         Widget popup = mm.openSubMenu(0, this, parent, false);
         if(popup != null) {
             popup.setPosition(x, y);
@@ -240,7 +324,11 @@ public class Menu extends MenuElement implements Iterable<MenuElement> {
         return smb;
     }
 
-    private Widget[] createWidgets(MenuManager mm, int level) {
+    protected MenuManager createMenuManager(Widget parent, boolean isMenuBar) {
+        return new MenuManager(parent, isMenuBar);
+    }
+
+    protected Widget[] createWidgets(MenuManager mm, int level) {
         Widget[] widgets = new Widget[elements.size()];
         for(int i=0,n=elements.size() ; i<n ; i++) {
             MenuElement e = elements.get(i);
@@ -250,8 +338,14 @@ public class Menu extends MenuElement implements Iterable<MenuElement> {
     }
 
     DialogLayout createPopup(MenuManager mm, int level, Widget btn) {
+        if(listeners != null) {
+            for(Listener l : listeners) {
+                l.menuOpening(this);
+            }
+        }
+        
         Widget[] widgets = createWidgets(mm, level);
-        MenuPopup popup = new MenuPopup(btn, level);
+        MenuPopup popup = new MenuPopup(btn, level, this);
         if(popupTheme != null) {
             popup.setTheme(popupTheme);
         }
@@ -259,25 +353,45 @@ public class Menu extends MenuElement implements Iterable<MenuElement> {
         popup.setVerticalGroup(popup.createSequentialGroup().addWidgetsWithGap("menuitem", widgets));
         return popup;
     }
+    
+    void fireMenuOpened() {
+        if(listeners != null) {
+            for(Listener l : listeners) {
+                l.menuOpened(this);
+            }
+        }
+    }
+    
+    void fireMenuClosed() {
+        if(listeners != null) {
+            for(Listener l : listeners) {
+                l.menuClosed(this);
+            }
+        }
+    }
 
     static class MenuPopup extends DialogLayout {
         private final Widget btn;
+        private final Menu menu;
         final int level;
 
-        MenuPopup(Widget btn, int level) {
+        MenuPopup(Widget btn, int level, Menu menu) {
             this.btn = btn;
+            this.menu = menu;
             this.level = level;
         }
 
         @Override
         protected void afterAddToGUI(GUI gui) {
             super.afterAddToGUI(gui);
+            menu.fireMenuOpened();
             btn.getAnimationState().setAnimationState(STATE_HAS_OPEN_MENUS, true);
         }
 
         @Override
         protected void beforeRemoveFromGUI(GUI gui) {
             btn.getAnimationState().setAnimationState(STATE_HAS_OPEN_MENUS, false);
+            menu.fireMenuClosed();
             super.beforeRemoveFromGUI(gui);
         }
 
@@ -291,6 +405,7 @@ public class Menu extends MenuElement implements Iterable<MenuElement> {
         private final MenuManager mm;
         private final int level;
 
+        @SuppressWarnings("LeakingThisInConstructor")
         public SubMenuBtn(MenuManager mm, int level) {
             this.mm = mm;
             this.level = level;

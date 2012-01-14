@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, Matthias Mann
+ * Copyright (c) 2008-2011, Matthias Mann
  *
  * All rights reserved.
  *
@@ -94,17 +94,20 @@ final class ParserUtil {
         }
     }
 
-    static Color parseColorFromAttribute(XMLParser xmlp, String attribute, Color defaultColor) throws XmlPullParserException {
+    static Color parseColorFromAttribute(XMLParser xmlp, String attribute, ParameterMapImpl constants, Color defaultColor) throws XmlPullParserException {
         String value = xmlp.getAttributeValue(null, attribute);
         if(value == null) {
             return defaultColor;
         }
-        return parseColor(xmlp, value);
+        return parseColor(xmlp, value, constants);
     }
 
-    static Color parseColor(XMLParser xmlp, String value) throws XmlPullParserException {
+    static Color parseColor(XMLParser xmlp, String value, ParameterMapImpl constants) throws XmlPullParserException {
         try {
             Color color = Color.parserColor(value);
+            if(color == null && constants != null) {
+                color = constants.getParameterValue(value, false, Color.class);
+            }
             if(color == null) {
                 throw xmlp.error("Unknown color name: " + value);
             }
@@ -135,7 +138,7 @@ final class ParserUtil {
         return map.subMap(baseName, baseName.concat("\uFFFF"));
     }
 
-    static<V> Map<String,V> resolve(SortedMap<String,V> map, String ref, String name) {
+    static<V> Map<String,V> resolve(SortedMap<String,V> map, String ref, String name, V mapToNull) {
         name = ParserUtil.appendDot(name);
         int refLen = ref.length() - 1;
         ref = ref.substring(0, refLen);
@@ -149,7 +152,11 @@ final class ParserUtil {
         for(Map.Entry<String, V> texEntry : matched.entrySet()) {
             String entryName = texEntry.getKey();
             assert entryName.startsWith(ref);
-            result.put(name.concat(entryName.substring(refLen)), texEntry.getValue());
+            V value = texEntry.getValue();
+            if(value == mapToNull) {
+                value = null;
+            }
+            result.put(name.concat(entryName.substring(refLen)), value);
         }
 
         return result;

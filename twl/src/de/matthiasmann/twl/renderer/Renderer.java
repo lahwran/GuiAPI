@@ -56,11 +56,11 @@ public interface Renderer {
      * must be called.</p>
      * @return true if rendering was started, false otherwise
      */
-    public boolean startRenderering();
+    public boolean startRendering();
     
     /**
      * Clean up after rendering TWL.
-     * Only call this method when {@link #startRenderering()} returned {@code true}
+     * Only call this method when {@link #startRendering()} returned {@code true}
      */
     public void endRendering();
     
@@ -134,6 +134,15 @@ public interface Renderer {
     public LineRenderer getLineRenderer();
 
     /**
+     * Returns the offscreen renderer. If offscreen rendering is not supported then this method returns null.
+     * 
+     * This is an optional operation.
+     *
+     * @return the offscreen renderer or null if not supported.
+     */
+    public OffscreenRenderer getOffscreenRenderer();
+    
+    /**
      * Creates a dynamic image with undefined content.
      * 
      * This is an optional operation.
@@ -143,13 +152,43 @@ public interface Renderer {
      * @return a new dynamic image or null if the image could not be created
      */
     public DynamicImage createDynamicImage(int width, int height);
-
+    
     /**
-     * Sets the clipping area for all rendering operations.
-     * @param rect A rectangle or null to disable clipping.
+     * Enters a clip region.
+     * 
+     * The new clip region is the intersection of the current clip region with
+     * the specified coordinates.
+     * 
+     * @param x the left edge
+     * @param y the top edge
+     * @param w the width
+     * @param h the height
      */
-    public void setClipRect(Rect rect);
-
+    public void clipEnter(int x, int y, int w, int h);
+    
+    /**
+     * Enters a clip region.
+     * 
+     * The new clip region is the intersection of the current clip region with
+     * the specified coordinates.
+     * 
+     * @param rect the coordinates
+     */
+    public void clipEnter(Rect rect);
+    
+    /**
+     * Checks if the active clip region is empty (nothing will render).
+     * @return true if the active clip region is empty
+     */
+    public boolean clipIsEmpty();
+    
+    /**
+     * Leaves a clip region creeated by {@code #clipEnter}
+     * @see #clipEnter(int, int, int, int) 
+     * @see #clipEnter(de.matthiasmann.twl.Rect) 
+     */
+    public void clipLeave();
+    
     public void setCursor(MouseCursor cursor);
 
     /**

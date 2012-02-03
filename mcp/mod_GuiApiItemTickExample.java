@@ -80,12 +80,8 @@ public class mod_GuiApiItemTickExample extends BaseMod {
 				"Automatically cycle SubItems",
 				"settingBooleanAutoCycleSubItems", true, "Yes", "No");
 
-		// Load any saved settings, if any.
-		mySettings.load();
-
-		// Make a new WidgetItem2DRender with the selected Item ID and Damage.
-		widgetRenderer = new WidgetItem2DRender(new ItemStack(
-				settingIntItemID.get(), 1, settingIntItemDamage.get()));
+		// Make a new WidgetItem2DRender.
+		widgetRenderer = new WidgetItem2DRender(new ItemStack(1, 1, 0));
 
 		// Add it to the ModSettingScreen.
 		myModScreen.append(widgetRenderer);
@@ -106,6 +102,10 @@ public class mod_GuiApiItemTickExample extends BaseMod {
 		// example, to make it 'tick' twice a second, the second argument would
 		// be 500. If you wanted it to call every frame, make it 0.
 		widgetTicker.addCallback(new ModAction(this, "onTick"), 1000);
+
+		// Load any saved settings, if any. This will call the onUpdate method
+		// automatically.
+		mySettings.load();
 	}
 
 	/**

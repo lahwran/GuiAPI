@@ -65,6 +65,7 @@ public class WidgetInt extends WidgetSetting implements Runnable {
 	@Override
 	public void update() {
 		slider.setValue(settingReference.get(ModSettingScreen.guiContext));
+		slider.setMinMaxValue(settingReference.minimumValue, settingReference.maximumValue);
 		slider.setFormat(String.format("%s: %%.0f", niceName));
 		ModSettings.dbgout("update "
 				+ settingReference.get(ModSettingScreen.guiContext) + " -> "

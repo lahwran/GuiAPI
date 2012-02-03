@@ -36,11 +36,11 @@ public class ModAction implements Runnable, PropertyChangeListener,
 	}
 
 	private Object[] defaultArguments;
+
 	private ArrayList<ModAction> mergedActions = new ArrayList<ModAction>();
 	private String methodName;
 	private Class[] methodParams = new Class[0];
 	private Object objectRef;
-
 	private Object tag;
 
 	/**
@@ -295,5 +295,10 @@ public class ModAction implements Runnable, PropertyChangeListener,
 		}
 		methodName = method;
 		objectRef = o;
+	}
+
+	@Override
+	public String toString() {
+		return "ModAction [methodName=" + methodName + ", tag=" + tag + "]";
 	}
 }

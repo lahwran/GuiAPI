@@ -20,7 +20,7 @@ public class WidgetItem2DRender extends Widget {
 
 	private static RenderItem itemRenderer = new RenderItem();
 
-	private int renderID;
+	private ItemStack renderStack;
 
 	private int scaleType = 0;
 
@@ -33,14 +33,24 @@ public class WidgetItem2DRender extends Widget {
 
 	/**
 	 * This makes the widget render the Item that is in the slot dictated by
-	 * renderID. Note, if that ID slot is empty it will render as if you pass 0.
+	 * renderID. Note, if that ID slot is empty it will render as if you pass 0, and that the damage will be 0.
 	 * 
 	 * @param renderID
 	 */
 	public WidgetItem2DRender(int renderID) {
+		this(new ItemStack(renderID, 0, 0));
+	}
+	
+	/**
+	 * This makes the widget render the Item that is in the slot dictated by
+	 * renderID. Note, if that ID slot is empty it will render as if you pass 0.
+	 * 
+	 * @param renderID
+	 */
+	public WidgetItem2DRender(ItemStack renderStack) {
 		setMinSize(16, 16);
 		setTheme("/progressbar");
-		setRenderID(renderID);
+		setRenderStack(renderStack);
 	}
 
 	/**
@@ -49,7 +59,16 @@ public class WidgetItem2DRender extends Widget {
 	 * @return The current ID to render.
 	 */
 	public int getRenderID() {
-		return renderID;
+		return renderStack == null ? 0 : renderStack.itemID;
+	}
+	
+	/**
+	 * This gets the ItemStack this Widget is supposed to render.
+	 * 
+	 * @return The current ID to render.
+	 */
+	public ItemStack getRenderStack() {
+		return renderStack;
 	}
 
 	/**
@@ -126,7 +145,7 @@ public class WidgetItem2DRender extends Widget {
 		x += 2;
 		y += 1;
 
-		if ((minecraft == null) || (Item.itemsList[getRenderID()] == null)) {
+		if ((minecraft == null) || (getRenderStack() == null) || (getRenderStack().getItem() == null)) {
 			// draw black or something? Maybe NULL?
 			return;
 		}
@@ -150,7 +169,7 @@ public class WidgetItem2DRender extends Widget {
 
 		GL11.glScalef(scalex, scaley, 1);
 
-		ItemStack stack = new ItemStack(getRenderID(), 0, 0);
+		ItemStack stack = getRenderStack();
 		WidgetItem2DRender.itemRenderer.renderItemIntoGUI(
 				minecraft.fontRenderer, minecraft.renderEngine, stack, x, y);
 		WidgetItem2DRender.itemRenderer.renderItemOverlayIntoGUI(
@@ -164,7 +183,7 @@ public class WidgetItem2DRender extends Widget {
 	}
 
 	/**
-	 * This sets the current ID to render. This checks bounds.
+	 * This sets the current ID to render. This checks bounds. ItemStack damage and count will stay the same.
 	 * 
 	 * @param renderID
 	 *            The ID you want this widget to render.
@@ -176,7 +195,30 @@ public class WidgetItem2DRender extends Widget {
 							"Render ID must be within the possible bounds of an Item ID! (%s - %s)",
 							0, Item.itemsList.length - 1));
 		}
-		this.renderID = renderID;
+		if(renderStack == null)
+			renderStack = new ItemStack(renderID,0,0); 
+		renderStack.itemID = renderID;
+	}
+	
+	
+	/**
+	 * This sets the ItemStack to render. This checks bounds.
+	 * 
+	 * @param stack The ItemStack you want this widget to render. Can't be null.
+	 */
+	public void setRenderStack(ItemStack stack)
+	{
+		if(stack == null)
+		{
+			throw new IllegalArgumentException("stack cannot be null.");
+		}
+		if ((stack.itemID >= Item.itemsList.length) || (stack.itemID < 0)) {
+			throw new IndexOutOfBoundsException(
+					String.format(
+							"Render ID must be within the possible bounds of an Item ID! (%s - %s)",
+							0, Item.itemsList.length - 1));
+		}
+		renderStack = stack;
 	}
 
 	/**

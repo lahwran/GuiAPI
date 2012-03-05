@@ -160,7 +160,7 @@ public class WidgetItem2DRender extends Widget {
 		GL11.glDisable(GL11.GL_BLEND);
 		GL11.glEnable(32826 /* GL_RESCALE_NORMAL_EXT *//* GL_RESCALE_NORMAL_EXT */);
 		RenderHelper.enableStandardItemLighting();
-		RenderHelper.func_41089_c();
+		RenderHelper.enableGUIStandardItemLighting();
 
 		if (getRenderID() == Block.chest.blockID) {
 			minecraft.renderEngine.bindTexture(minecraft.renderEngine

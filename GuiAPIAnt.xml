@@ -4,11 +4,10 @@
 	<target name="javadoc">
 		<javadoc access="protected" author="true" classpath="/Client/jars/bin/minecraft.jar;/Client/jars/bin/lwjgl.jar;/Client/jars/bin/lwjgl_util.jar;/Client/jars/bin/jinput.jar" destdir="C:\Users\Shawn\Dropbox\Public\GuiAPI Javadoc" nodeprecated="false" nodeprecatedlist="false" noindex="false" nonavbar="false" notree="false" source="1.5" splitindex="true" use="true" version="true">
 			<fileset dir="..\..\src\minecraft\net\minecraft\src" casesensitive="no" defaultexcludes="no">
-				<include name="**/GuiApi*.java"/>
 				<include name="**/GuiModScreen.java"/>
 				<include name="**/GuiModSelect.java"/>
 				<include name="**/GuiWidgetScreen.java"/>
-				<include name="**/mod_GuiApi*.java"/>
+				<include name="**/*GuiApi*.java"/>
 				<include name="**/ModAction.java"/>
 				<include name="**/ModSettings.java"/>
 				<include name="**/ModSettingScreen.java"/>
@@ -21,11 +20,10 @@
 	<target name="copyfiles">
 		<copy todir="G:\MineCraft\GitHub\GuiAPI\mcp">
 			<fileset dir="..\..\src\minecraft\net\minecraft\src" casesensitive="no" defaultexcludes="no">
-				<include name="**/GuiApi*.java"/>
 				<include name="**/GuiModScreen.java"/>
 				<include name="**/GuiModSelect.java"/>
 				<include name="**/GuiWidgetScreen.java"/>
-				<include name="**/mod_GuiApi*.java"/>
+				<include name="**/*GuiApi*.java"/>
 				<include name="**/ModAction.java"/>
 				<include name="**/ModSettings.java"/>
 				<include name="**/ModSettingScreen.java"/>

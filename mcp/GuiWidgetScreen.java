@@ -1,6 +1,9 @@
 package net.minecraft.src;
 
+import java.io.IOException;
 import java.net.URL;
+import java.net.URLConnection;
+import java.net.URLStreamHandler;
 
 import net.minecraft.client.Minecraft;
 import de.matthiasmann.twl.GUI;
@@ -59,11 +62,16 @@ public class GuiWidgetScreen extends Widget {
 			String themename = "twlGuiTheme.xml";
 			GuiWidgetScreen.instance.gui = new GUI(GuiWidgetScreen.instance,
 					GuiWidgetScreen.instance.renderer, new LWJGLInput());
-			GuiWidgetScreen.themeURL = GuiWidgetScreen.class.getClassLoader()
-					.getResource(themename);
-			// themeURL = new URL("file:/G:/MineCraft/GitHub/GuiAPI/theme/" +
-			// themename); // Testing
-			ModSettings.dbgout(GuiWidgetScreen.themeURL.toString());
+
+			GuiWidgetScreen.themeURL = new URL("classloader","",-1,themename,new URLStreamHandler(){
+				@Override
+				protected URLConnection openConnection(URL paramURL) throws IOException {
+					String file = paramURL.getFile();
+					if(file.startsWith("/")) { file = file.substring(1); }
+					return GuiWidgetScreen.class.getClassLoader().getResource(file).openConnection();
+				}
+			});
+			
 			GuiWidgetScreen.instance.theme = ThemeManager
 					.createThemeManager(GuiWidgetScreen.themeURL,
 							GuiWidgetScreen.instance.renderer);

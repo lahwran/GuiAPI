@@ -33,14 +33,15 @@ public class WidgetItem2DRender extends Widget {
 
 	/**
 	 * This makes the widget render the Item that is in the slot dictated by
-	 * renderID. Note, if that ID slot is empty it will render as if you pass 0, and that the damage will be 0.
+	 * renderID. Note, if that ID slot is empty it will render as if you pass 0,
+	 * and that the damage will be 0.
 	 * 
 	 * @param renderID
 	 */
 	public WidgetItem2DRender(int renderID) {
 		this(new ItemStack(renderID, 0, 0));
 	}
-	
+
 	/**
 	 * This makes the widget render the Item that is in the slot dictated by
 	 * renderID. Note, if that ID slot is empty it will render as if you pass 0.
@@ -61,7 +62,7 @@ public class WidgetItem2DRender extends Widget {
 	public int getRenderID() {
 		return renderStack == null ? 0 : renderStack.itemID;
 	}
-	
+
 	/**
 	 * This gets the ItemStack this Widget is supposed to render.
 	 * 
@@ -82,7 +83,7 @@ public class WidgetItem2DRender extends Widget {
 
 	@Override
 	protected void paintWidget(GUI gui) {
-
+		
 		Minecraft minecraft = ModSettings.getMcinst();
 
 		int x = getX();
@@ -93,13 +94,13 @@ public class WidgetItem2DRender extends Widget {
 		int maxWidth = getInnerWidth() - 4;
 		int maxHeight = getInnerHeight() - 4;
 
-		int scaleType = getScaleType();
+		int scale = getScaleType();
 
-		if ((scaleType == -1) && ((maxWidth < 16) || (maxHeight < 16))) {
-			scaleType = 0;
+		if ((scale == -1) && ((maxWidth < 16) || (maxHeight < 16))) {
+			scale = 0;
 		}
 
-		switch (scaleType) {
+		switch (scale) {
 		case 0: {
 			// largest square
 			int size = 0;
@@ -145,7 +146,8 @@ public class WidgetItem2DRender extends Widget {
 		x += 2;
 		y += 1;
 
-		if ((minecraft == null) || (getRenderStack() == null) || (getRenderStack().getItem() == null)) {
+		if ((minecraft == null) || (getRenderStack() == null)
+				|| (getRenderStack().getItem() == null)) {
 			// draw black or something? Maybe NULL?
 			return;
 		}
@@ -162,18 +164,22 @@ public class WidgetItem2DRender extends Widget {
 		RenderHelper.enableStandardItemLighting();
 		RenderHelper.enableGUIStandardItemLighting();
 
-		if (getRenderID() == Block.chest.blockID) {
-			minecraft.renderEngine.bindTexture(minecraft.renderEngine
-					.getTexture("/item/chest.png"));
-		}
-
 		GL11.glScalef(scalex, scaley, 1);
 
 		ItemStack stack = getRenderStack();
-		WidgetItem2DRender.itemRenderer.renderItemIntoGUI(
-				minecraft.fontRenderer, minecraft.renderEngine, stack, x, y);
-		WidgetItem2DRender.itemRenderer.renderItemOverlayIntoGUI(
-				minecraft.fontRenderer, minecraft.renderEngine, stack, x, y);
+		try {
+			WidgetItem2DRender.itemRenderer
+					.renderItemIntoGUI(minecraft.fontRenderer,
+							minecraft.renderEngine, stack, x, y);
+			WidgetItem2DRender.itemRenderer
+					.renderItemOverlayIntoGUI(minecraft.fontRenderer,
+							minecraft.renderEngine, stack, x, y);
+		} catch (Throwable e) {
+			ModSettings
+					.dbgout("WidgetItem2DRender: Failed to render Itemstack '"
+							+ stack.toString()
+							+ "' due to unhandled exception.");
+		}
 		RenderHelper.disableStandardItemLighting();
 		GL11.glDisable(32826 /* GL_RESCALE_NORMAL_EXT *//* GL_RESCALE_NORMAL_EXT */);
 
@@ -183,7 +189,8 @@ public class WidgetItem2DRender extends Widget {
 	}
 
 	/**
-	 * This sets the current ID to render. This checks bounds. ItemStack damage and count will stay the same.
+	 * This sets the current ID to render. This checks bounds. ItemStack damage
+	 * and count will stay the same.
 	 * 
 	 * @param renderID
 	 *            The ID you want this widget to render.
@@ -195,21 +202,20 @@ public class WidgetItem2DRender extends Widget {
 							"Render ID must be within the possible bounds of an Item ID! (%s - %s)",
 							0, Item.itemsList.length - 1));
 		}
-		if(renderStack == null)
-			renderStack = new ItemStack(renderID,0,0); 
+		if (renderStack == null) {
+			renderStack = new ItemStack(renderID, 0, 0);
+		}
 		renderStack.itemID = renderID;
 	}
-	
-	
+
 	/**
 	 * This sets the ItemStack to render. This checks bounds.
 	 * 
-	 * @param stack The ItemStack you want this widget to render. Can't be null.
+	 * @param stack
+	 *            The ItemStack you want this widget to render. Can't be null.
 	 */
-	public void setRenderStack(ItemStack stack)
-	{
-		if(stack == null)
-		{
+	public void setRenderStack(ItemStack stack) {
+		if (stack == null) {
 			throw new IllegalArgumentException("stack cannot be null.");
 		}
 		if ((stack.itemID >= Item.itemsList.length) || (stack.itemID < 0)) {

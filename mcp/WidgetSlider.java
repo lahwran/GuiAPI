@@ -12,7 +12,7 @@ import de.matthiasmann.twl.model.FloatModel;
 public class WidgetSlider extends ValueAdjusterFloat {
 	/**
 	 * This is the basic constructor. It just calls the ValueAdjusterFloat
-	 * constructor.
+	 * constructor, as well as adding an option to allow editing the value with text.
 	 * 
 	 * @param f
 	 *            The FloatModel to use.
@@ -20,9 +20,34 @@ public class WidgetSlider extends ValueAdjusterFloat {
 	public WidgetSlider(FloatModel f) {
 		super(f);
 	}
+	
+	private boolean canEdit = false;;
+	
+	public void setCanEdit(boolean value)
+	{
+		canEdit = value;
+	}
+	
+	public boolean getCanEdit()
+	{
+		return canEdit;
+	}
 
 	@Override
 	public void startEdit() {
-		cancelEdit();
+		if(!getCanEdit())
+		{
+			cancelEdit();
+		}
+		else
+		{
+			super.startEdit();
+		}
+	}
+	
+	@Override
+	protected String onEditStart()
+	{
+		return Float.toString(getValue());
 	}
 }

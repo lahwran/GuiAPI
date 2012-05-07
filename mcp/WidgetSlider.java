@@ -23,11 +23,18 @@ public class WidgetSlider extends ValueAdjusterFloat {
 	
 	private boolean canEdit = false;;
 	
+	/**
+	 * Specifies whether or not to allow the user to click on the Slider to enter a numberic value.
+	 * @param value Whether or not to allow Editing.
+	 */
 	public void setCanEdit(boolean value)
 	{
 		canEdit = value;
 	}
 	
+	/**
+	 * @return True if the user can edit this Slider by clicking on it: False otherwise.
+	 */
 	public boolean getCanEdit()
 	{
 		return canEdit;

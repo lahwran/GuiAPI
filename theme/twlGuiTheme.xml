@@ -83,10 +83,12 @@
     </theme>
 
     <theme name="label" ref="-defaults" allowWildcard="true">
+        <param name="border"><border>2</border></param>
     </theme>
     <theme name="button" ref="-defaults" allowWildcard="true">
         <param name="background"><image>button</image></param>
         <param name="textAlignment"><enum type="alignment">center</enum></param>
+        <param name="border"><border>4</border></param>
     </theme>
     <theme name="togglebutton" ref="button" allowWildcard="true"/>
     <theme name="editfield">
@@ -201,6 +203,7 @@
             <map>
             </map>
         </param>
+        <param name="border"><border>4</border></param>
     </theme>
     <theme name="colorselector" ref="-defaults" allowWildcard="true">
         <theme name="colorarea2d" ref="-defaults">
@@ -243,10 +246,12 @@
     <theme name="listbox" ref="-defaults">
         <theme name="display" ref="-defaults">
             <param name="background"><image>button</image></param>
+            <param name="border"><border>4</border></param>
         </theme>
     </theme>
     <theme name="listbox-noback" ref="-defaults">
         <theme name="display" ref="-defaults">
+            <param name="border"><border>4</border></param>
         </theme>
     </theme>
     <theme name="progressbar" ref="-defaults">

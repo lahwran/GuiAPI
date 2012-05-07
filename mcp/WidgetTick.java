@@ -214,7 +214,7 @@ public class WidgetTick extends Widget {
 	 * 
 	 * @param callback
 	 *            The callback you want this to call.
-	 * @return {@link #FrameTick}
+	 * @return {@link WidgetTick.FrameTick}
 	 */
 	public FrameTick addCallback(Runnable callback) {
 		FrameTick tick = new FrameTick(callback);
@@ -228,7 +228,7 @@ public class WidgetTick extends Widget {
 	 * @param callback
 	 *            The callback you want this to call.
 	 * @param timepertick
-	 * @return {@link #DelayTick}
+	 * @return {@link WidgetTick.DelayTick}
 	 */
 	public DelayTick addCallback(Runnable callback, int timepertick) {
 		DelayTick tick = new DelayTick(callback, timepertick);
@@ -237,12 +237,12 @@ public class WidgetTick extends Widget {
 	}
 
 	/**
-	 * This adds an {@link #iTick} to the internal array. This is so you can
+	 * This adds an {@link WidgetTick.iTick} to the internal array. This is so you can
 	 * create your own custom ticks and add them if you want something more
 	 * powerful.
 	 * 
 	 * @param tick
-	 *            The {@link #iTick} to add.
+	 *            The {@link WidgetTick.iTick} to add.
 	 * @return true if it was able to be added, false otherwise.
 	 */
 	public boolean addCustomTick(iTick tick) {
@@ -257,7 +257,7 @@ public class WidgetTick extends Widget {
 	 *            The callback you want this to call.
 	 * @param delay
 	 *            The delay on the tick.
-	 * @return The created {@link #SingleTick}
+	 * @return The created {@link WidgetTick.SingleTick}
 	 */
 	public SingleTick addTimedCallback(Runnable callback, int delay) {
 		SingleTick tick = new SingleTick(callback, delay);

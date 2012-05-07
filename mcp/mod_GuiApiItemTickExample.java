@@ -2,7 +2,7 @@ package net.minecraft.src;
 
 /**
  * This is an example specifically focused to some usage of {@link WidgetTick}
- * and {@link WidgetItem2DRender}. We'll be making a {@link ModScreen} that lets
+ * and {@link WidgetItem2DRender}. We'll be making a {@link ModSettingScreen} that lets
  * you select an Item ID and a damage value to display, as well as making it so
  * that if the selected Item ID is a SubItem, if a toggle is on it will
  * automatically cycle it once a second.

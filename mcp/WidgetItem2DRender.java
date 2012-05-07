@@ -43,10 +43,9 @@ public class WidgetItem2DRender extends Widget {
 	}
 
 	/**
-	 * This makes the widget render the Item that is in the slot dictated by
-	 * renderID. Note, if that ID slot is empty it will render as if you pass 0.
+	 * This makes the widget render the ItemStack passed.
 	 * 
-	 * @param renderID
+	 * @param renderStack
 	 */
 	public WidgetItem2DRender(ItemStack renderStack) {
 		setMinSize(16, 16);

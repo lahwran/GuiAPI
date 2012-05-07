@@ -13,7 +13,7 @@ public class ItemGuiApiExample extends Item {
 	/**
 	 * Default constructor for Items.
 	 * 
-	 * @param par1
+	 * @param itemID
 	 */
 	protected ItemGuiApiExample(int itemID) {
 		super(itemID);

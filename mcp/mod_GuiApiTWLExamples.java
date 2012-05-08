@@ -84,7 +84,7 @@ public class mod_GuiApiTWLExamples extends BaseMod {
 		WidgetSinglecolumn widgetSingleColumn = new WidgetSinglecolumn();
 		widgetSingleColumn.childDefaultWidth = 300;
 
-		colorLabel = new Label("This is an example of coloring a label's Test.");
+		colorLabel = new Label("This is an example of coloring a label's Text.");
 		widgetSingleColumn.add(colorLabel);
 		colorFontHelper.setFont(colorLabel);
 		colorProgressBar = new ProgressBar();
@@ -126,6 +126,7 @@ public class mod_GuiApiTWLExamples extends BaseMod {
 				"GuiAPI / TWL Coloring examples!");
 	}
 
+	
 	private void SetUpListBox() {
 		WidgetSinglecolumn widgetSingleColumn = new WidgetSinglecolumn();
 		listBoxSettingTest = modSettings.addSetting(widgetSingleColumn,

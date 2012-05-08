@@ -258,21 +258,25 @@
         <param name="background"><image>background</image></param>
         <param name="progressImage"><image>progress</image></param>
         <param name="overlay"><image>button-border</image></param>
+        <param name="textAlignment"><enum type="alignment">CENTER</enum></param>
     </theme>
     <theme name="progressbar-white" ref="-defaults">
         <param name="background"><image>background</image></param>
         <param name="progressImage"><image>progress-white</image></param>
         <param name="overlay"><image>button-border</image></param>
+        <param name="textAlignment"><enum type="alignment">CENTER</enum></param>
     </theme>
     <theme name="progressbar-noback" ref="-defaults">
         <param name="background"><image>none</image></param>
         <param name="progressImage"><image>progress</image></param>
         <param name="overlay"><image>button-border</image></param>
+        <param name="textAlignment"><enum type="alignment">CENTER</enum></param>
     </theme>
     <theme name="progressbar-white-noback" ref="-defaults">
         <param name="background"><image>none</image></param>
         <param name="progressImage"><image>progress-white</image></param>
         <param name="overlay"><image>button-border</image></param>
+        <param name="textAlignment"><enum type="alignment">CENTER</enum></param>
     </theme>
     <theme name="combobox" ref="-defaults">
         <theme name="display" ref="-defaults">

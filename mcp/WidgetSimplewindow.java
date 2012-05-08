@@ -36,7 +36,7 @@ public class WidgetSimplewindow extends Widget {
 	/**
 	 * This is a reference to the ScrollPane that the Main Widget is in.
 	 */
-	public Widget scrollPane = null;
+	public Widget scrollPane = null; //TODO: Make this ScrollPane next release.
 	/**
 	 * This is a reference to the Label that acts as the title on top.
 	 */
@@ -98,9 +98,9 @@ public class WidgetSimplewindow extends Widget {
 	 * @param showbackButton
 	 */
 	public WidgetSimplewindow(Widget w, String s, Boolean showbackButton) {
-		ScrollPane scrollPane = new ScrollPane(w);
-		scrollPane.setFixed(ScrollPane.Fixed.HORIZONTAL);
-		this.scrollPane = scrollPane;
+		ScrollPane scrollpane = new ScrollPane(w);
+		scrollpane.setFixed(ScrollPane.Fixed.HORIZONTAL);
+		this.scrollPane = scrollpane;
 		mainWidget = w;
 		setTheme("");
 		init(showbackButton, s);

@@ -14,7 +14,7 @@ import de.matthiasmann.twl.Widget;
  * 
  * @author ShaRose
  */
-public class WidgetTick extends Widget {
+public class WidgetTick extends Widget implements IWidgetAlwaysDraw {
 
 	/**
 	 * This is a Tick that calls the passed Runnable each time a specific delay

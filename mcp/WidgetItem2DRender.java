@@ -1,5 +1,7 @@
 package net.minecraft.src;
 
+import java.util.logging.Level;
+
 import net.minecraft.client.Minecraft;
 
 import org.lwjgl.opengl.GL11;
@@ -157,7 +159,6 @@ public class WidgetItem2DRender extends Widget {
 		screen.renderer.setClipRect();
 		GL11.glEnable(GL11.GL_SCISSOR_TEST);
 		GL11.glPushMatrix();
-
 		GL11.glDisable(GL11.GL_BLEND);
 		GL11.glEnable(32826 /* GL_RESCALE_NORMAL_EXT *//* GL_RESCALE_NORMAL_EXT */);
 		RenderHelper.enableStandardItemLighting();
@@ -166,19 +167,49 @@ public class WidgetItem2DRender extends Widget {
 		GL11.glScalef(scalex, scaley, 1);
 
 		ItemStack stack = getRenderStack();
+		
+		if(Tessellator.instance.isDrawing)
+		{
+			//Yes, this IS stuff to work around 'bad' mods :D
+			Tessellator.instance.isDrawing = false;
+		}
+		int stackBeforeDraw = GL11.glGetInteger(GL11.GL_MODELVIEW_STACK_DEPTH);
 		try {
+			
 			WidgetItem2DRender.itemRenderer
 					.renderItemIntoGUI(minecraft.fontRenderer,
 							minecraft.renderEngine, stack, x, y);
+			if(Tessellator.instance.isDrawing)
+			{
+				//Yes, this IS stuff to work around 'bad' mods :D
+				Tessellator.instance.isDrawing = false;
+			}
 			WidgetItem2DRender.itemRenderer
 					.renderItemOverlayIntoGUI(minecraft.fontRenderer,
 							minecraft.renderEngine, stack, x, y);
+			if(Tessellator.instance.isDrawing)
+			{
+				//Yes, this IS stuff to work around 'bad' mods :D
+				Tessellator.instance.isDrawing = false;
+			}
 		} catch (Throwable e) {
-			ModSettings
-					.dbgout("WidgetItem2DRender: Failed to render Itemstack '"
-							+ stack.toString()
-							+ "' due to unhandled exception.");
+			if(Tessellator.instance.isDrawing)
+			{
+				//Yes, this IS stuff to work around 'bad' mods :D
+				Tessellator.instance.isDrawing = false;
+			}
 		}
+		
+		int stackAfterDraw = GL11.glGetInteger(GL11.GL_MODELVIEW_STACK_DEPTH);
+		
+		if(stackBeforeDraw != stackAfterDraw)
+		{
+			//Yes, this IS stuff to work around 'bad' mods :D
+			for (int i = 0; i < stackAfterDraw - stackBeforeDraw; i++) {
+				GL11.glPopMatrix();
+			}
+		}
+		
 		RenderHelper.disableStandardItemLighting();
 		GL11.glDisable(32826 /* GL_RESCALE_NORMAL_EXT *//* GL_RESCALE_NORMAL_EXT */);
 

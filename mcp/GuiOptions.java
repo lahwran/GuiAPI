@@ -3,20 +3,20 @@ package net.minecraft.src;
 public class GuiOptions extends GuiScreen
 {
     /**
+     * An array of options that can be changed directly from the options GUI.
+     */
+    private static final EnumOptions[] relevantOptions = new EnumOptions[] {EnumOptions.MUSIC, EnumOptions.SOUND, EnumOptions.INVERT_MOUSE, EnumOptions.SENSITIVITY, EnumOptions.FOV, EnumOptions.DIFFICULTY};
+
+    /**
      * A reference to the screen object that created this. Used for navigating between screens.
      */
-    private GuiScreen parentScreen;
+    private final GuiScreen parentScreen;
+
+    /** Reference to the GameSettings object. */
+    private final GameSettings options;
 
     /** The title string that is displayed in the top-center of the screen. */
     protected String screenTitle = "Options";
-
-    /** Reference to the GameSettings object. */
-    private GameSettings options;
-
-    /**
-     * An array of options that can be changed directly from the options GUI.
-     */
-    private static EnumOptions[] relevantOptions = new EnumOptions[] {EnumOptions.MUSIC, EnumOptions.SOUND, EnumOptions.INVERT_MOUSE, EnumOptions.SENSITIVITY, EnumOptions.FOV, EnumOptions.DIFFICULTY};
 
     public GuiOptions(GuiScreen par1GuiScreen, GameSettings par2GameSettings)
     {
@@ -30,8 +30,8 @@ public class GuiOptions extends GuiScreen
     public void initGui()
     {
         StringTranslate var1 = StringTranslate.getInstance();
-        this.screenTitle = var1.translateKey("options.title");
         int var2 = 0;
+        this.screenTitle = var1.translateKey("options.title");
         EnumOptions[] var3 = relevantOptions;
         int var4 = var3.length;
 
@@ -39,7 +39,11 @@ public class GuiOptions extends GuiScreen
         {
             EnumOptions var6 = var3[var5];
 
-            if (!var6.getEnumFloat())
+            if (var6.getEnumFloat())
+            {
+                this.controlList.add(new GuiSlider(var6.returnEnumOrdinal(), this.width / 2 - 155 + var2 % 2 * 160, this.height / 6 + 24 * (var2 >> 1), var6, this.options.getKeyBinding(var6), this.options.getOptionFloatValue(var6)));
+            }
+            else
             {
                 GuiSmallButton var7 = new GuiSmallButton(var6.returnEnumOrdinal(), this.width / 2 - 155 + var2 % 2 * 160, this.height / 6 + 24 * (var2 >> 1), var6, this.options.getKeyBinding(var6));
 
@@ -51,19 +55,17 @@ public class GuiOptions extends GuiScreen
 
                 this.controlList.add(var7);
             }
-            else
-            {
-                this.controlList.add(new GuiSlider(var6.returnEnumOrdinal(), this.width / 2 - 155 + var2 % 2 * 160, this.height / 6 + 24 * (var2 >> 1), var6, this.options.getKeyBinding(var6), this.options.getOptionFloatValue(var6)));
-            }
 
             ++var2;
         }
 
-        this.controlList.add(new GuiButton(101, this.width / 2 - 100, this.height / 6 + 72, var1.translateKey("options.video")));
-        this.controlList.add(new GuiButton(100, this.width / 2 - 100, this.height / 6 + 96, var1.translateKey("options.controls")));
-        this.controlList.add(new GuiButton(102, this.width / 2 - 100, this.height / 6 + 120, var1.translateKey("options.language")));
+        this.controlList.add(new GuiButton(101, this.width / 2 - 152, this.height / 6 + 96 - 6, 150, 20, var1.translateKey("options.video")));
+        this.controlList.add(new GuiButton(100, this.width / 2 + 2, this.height / 6 + 96 - 6, 150, 20, var1.translateKey("options.controls")));
+        this.controlList.add(new GuiButton(102, this.width / 2 - 152, this.height / 6 + 120 - 6, 150, 20, var1.translateKey("options.language")));
+        this.controlList.add(new GuiButton(103, this.width / 2 + 2, this.height / 6 + 120 - 6, 150, 20, var1.translateKey("options.chat.title")));
+        this.controlList.add(new GuiButton(104, this.width / 2 + 2, this.height / 6 + 144 - 6, 150, 20, var1.translateKey("options.snooper.view")));
         
-        this.controlList.add(new GuiButton(300, this.width / 2 - 100, this.height / 6 + 144, "Global Mod Settings")); //GuiAPI Edit: Please make sure to modify the values above to make room
+        this.controlList.add(new GuiButton(300, this.width / 2 - 152, this.height / 6 + 144 - 6, 150, 20, "Global Mod Options")); // GuiAPI Edit
         
         this.controlList.add(new GuiButton(200, this.width / 2 - 100, this.height / 6 + 168, var1.translateKey("gui.done")));
     }
@@ -99,12 +101,23 @@ public class GuiOptions extends GuiScreen
                 this.mc.displayGuiScreen(new GuiLanguage(this, this.options));
             }
 
+            if (par1GuiButton.id == 103)
+            {
+                this.mc.gameSettings.saveOptions();
+                this.mc.displayGuiScreen(new ScreenChatOptions(this, this.options));
+            }
+
+            if (par1GuiButton.id == 104)
+            {
+                this.mc.gameSettings.saveOptions();
+                this.mc.displayGuiScreen(new GuiSnooper(this, this.options));
+            }
+
             if (par1GuiButton.id == 200)
             {
                 this.mc.gameSettings.saveOptions();
                 this.mc.displayGuiScreen(this.parentScreen);
             }
-            
             if(par1GuiButton.id == 300) { //GuiAPI Edit
                 this.mc.gameSettings.saveOptions();
                 ModSettingScreen.guiContext = "";

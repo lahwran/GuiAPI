@@ -34,7 +34,7 @@ public class ModSettings {
 	 * Debug mode flag. Should always be false.
 	 */
 	public static final boolean debug = false;
-	private static Minecraft minecraftInstance;
+	
 	static {
 		ModSettings.contextDatadirs = new HashMap<String, String>();
 		ModSettings.currentContext = "";
@@ -72,38 +72,7 @@ public class ModSettings {
 	 * @return The minecraft instance.
 	 */
 	public static Minecraft getMcinst() {
-		if (ModSettings.minecraftInstance != null) {
-			return ModSettings.minecraftInstance;
-		}
-		Field f;
-		try {
-			f = Minecraft.class.getDeclaredFields()[1];
-			f.setAccessible(true);
-			Minecraft m = (Minecraft) f.get(null);
-			if (m != null) {
-				ModSettings.minecraftInstance = m;
-				return m;
-			}
-			f = Thread.class.getDeclaredField("target");
-			f.setAccessible(true);
-			ThreadGroup group = Thread.currentThread().getThreadGroup();
-			int count = group.activeCount();
-			Thread[] threads = new Thread[count];
-			group.enumerate(threads);
-			for (int i = 0; i < threads.length; i++) {
-				if (threads[i].getName().equals("Minecraft main thread")) {
-					m = (Minecraft) f.get(threads[i]);
-					if (m != null) {
-						ModSettings.minecraftInstance = m;
-						return m;
-					}
-				}
-			}
-		} catch (Throwable t) {
-			throw new RuntimeException(t);
-		}
-		throw new RuntimeException(
-				"You are a godless monkey! why are you doing weird things with the innards of minecraft?");
+		return Minecraft.getMinecraft();
 	}
 
 	/**
@@ -116,16 +85,6 @@ public class ModSettings {
 		for (int i = 0; i < ModSettings.all.size(); i++) {
 			ModSettings.all.get(i).load(context);
 		}
-	}
-
-	/**
-	 * Set the Minecraft instance that getMcinst returns.
-	 * 
-	 * @param m
-	 *            The Minecraft Instance.
-	 */
-	public static void presetMcint(Minecraft m) {
-		ModSettings.minecraftInstance = m;
 	}
 
 	/**

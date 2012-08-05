@@ -144,7 +144,7 @@ public class GuiModScreen extends GuiScreen {
 				GuiWidgetScreen.getInstance().minecraftInstance.gameSettings,
 				GuiWidgetScreen.getInstance().minecraftInstance.displayWidth,
 				GuiWidgetScreen.getInstance().minecraftInstance.displayHeight);
-		RenderScale.scale = var5.scaleFactor;
+		RenderScale.scale = var5.getScaleFactor();
 		var4.syncViewportSize();
 		GuiWidgetScreen.getInstance().gui.update();
 	}

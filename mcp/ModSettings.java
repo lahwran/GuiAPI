@@ -3,6 +3,7 @@ package net.minecraft.src;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.security.InvalidParameterException;
 import java.util.ArrayList;
@@ -62,7 +63,15 @@ public class ModSettings {
 	 * @return A File reference to the directory created.
 	 */
 	public static File getAppDir(String app) {
-		return new File(Minecraft.getMinecraftDir(),app);
+		try {
+			return new File(Minecraft.getMinecraftDir(), app)
+					.getCanonicalFile(); // Attempt to clean it up a bit.
+		} catch (IOException e) {
+			// If it can't be cleaned for whatever reason, just return the
+			// 'unclean' path. Normally I would just add throws, but that might
+			// break other mods.
+			return new File(Minecraft.getMinecraftDir(), app);
+		}
 	}
 
 	/**

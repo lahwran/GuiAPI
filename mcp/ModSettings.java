@@ -62,7 +62,7 @@ public class ModSettings {
 	 * @return A File reference to the directory created.
 	 */
 	public static File getAppDir(String app) {
-		return Minecraft.getAppDir(app);
+		return new File(Minecraft.getMinecraftDir(),app);
 	}
 
 	/**
@@ -908,7 +908,7 @@ public class ModSettings {
 				if (ModSettings.contextDatadirs.get(context) == null) {
 					break;
 				}
-				File path = ModSettings.getAppDir("minecraft/"
+				File path = ModSettings.getAppDir("/"
 						+ ModSettings.contextDatadirs.get(context) + "/"
 						+ backendname + "/");
 				if (!path.exists()) {
@@ -982,7 +982,7 @@ public class ModSettings {
 			return;
 		}
 		try {
-			File path = ModSettings.getAppDir("minecraft/"
+			File path = ModSettings.getAppDir("/"
 					+ ModSettings.contextDatadirs.get(context) + "/"
 					+ backendname + "/");
 			ModSettings.dbgout("saving context " + context + " ("

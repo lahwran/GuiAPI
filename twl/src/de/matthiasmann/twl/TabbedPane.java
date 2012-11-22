@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2011, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -92,6 +92,7 @@ public class TabbedPane extends Widget {
 
         addActionMapping("nextTab", "cycleTabs", +1);
         addActionMapping("prevTab", "cycleTabs", -1);
+        setCanAcceptKeyboardFocus(false);
     }
 
     public TabPosition getTabPosition() {
@@ -198,7 +199,7 @@ public class TabbedPane extends Widget {
                 }
             }
             
-            if(tab.pane != null) {
+            if(tab != null && tab.pane != null) {
                 tab.pane.requestKeyboardFocus();
             }
         }
@@ -223,6 +224,21 @@ public class TabbedPane extends Widget {
         tabBox.removeAllChildren();
         tabs.clear();
         activeTab = null;
+    }
+    
+    public int getNumTabs() {
+        return tabs.size();
+    }
+    
+    public Tab getTab(int index) {
+        return tabs.get(index);
+    }
+    
+    public int getActiveTabIndex() {
+        if(tabs.isEmpty()) {
+            return -1;
+        }
+        return tabs.indexOf(activeTab);
     }
 
     public void cycleTabs(int direction) {
@@ -444,6 +460,7 @@ public class TabbedPane extends Widget {
         final TabButton button;
         Widget pane;
         Runnable closeCallback;
+        Object userValue;
 
         Tab() {
             button = new TabButton(this);
@@ -479,6 +496,18 @@ public class TabbedPane extends Widget {
         public Tab setTitle(String title) {
             button.setText(title);
             return this;
+        }
+        
+        public String getTitle() {
+            return button.getText();
+        }
+
+        public Object getUserValue() {
+            return userValue;
+        }
+
+        public void setUserValue(Object userValue) {
+            this.userValue = userValue;
         }
 
         /**
@@ -526,6 +555,7 @@ public class TabbedPane extends Widget {
         
         TabButton(BooleanModel model) {
             super(model);
+            setCanAcceptKeyboardFocus(false);
             closeButtonAlignment = Alignment.RIGHT;
         }
 

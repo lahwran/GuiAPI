@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -103,50 +103,46 @@ public class LWJGLTexture implements Texture, Resource {
 
     public LWJGLTexture(LWJGLRenderer renderer, int width, int height,
             ByteBuffer buf, Format fmt, Filter filter) {
-    	Util.checkGLError();
         this.renderer = renderer;
 
         if(width <= 0 || height <= 0) {
             throw new IllegalArgumentException("size <= 0");
         }
 
-        id = renderer.glGenTexture();
-        Util.checkGLError();
+        id = GL11.glGenTextures();
         if(id == 0) {
             throw new OpenGLException("failed to allocate texture ID");
         }
+
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, id);
-        Util.checkGLError();
         GL11.glPixelStorei(GL11.GL_UNPACK_ROW_LENGTH, 0);
-        Util.checkGLError();
         GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
-        Util.checkGLError();
+
         if(GLContext.getCapabilities().OpenGL12) {
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE);
-            Util.checkGLError();
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE);
         } else {
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL11.GL_CLAMP);
-            Util.checkGLError();
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL11.GL_CLAMP);
         }
-        Util.checkGLError();
+
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, filter.glValue);
-        Util.checkGLError();
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, filter.glValue);
-        Util.checkGLError();
+
         this.texWidth = roundUpPOT(width);
         this.texHeight = roundUpPOT(height);
-        Util.checkGLError();
+
         if(texWidth != width || texHeight != height) {
             GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0,
                     fmt.glInternalFormat, texWidth, texHeight,
                     0, fmt.glFormat, GL11.GL_UNSIGNED_BYTE,
                     (ByteBuffer)null);
-            Util.checkGLError();
-            GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, 0,
-                    0, 0, width, height, fmt.glFormat,
-                    GL11.GL_UNSIGNED_BYTE, buf);
+            if(buf != null) {
+                Util.checkGLError();
+                GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, 0,
+                        0, 0, width, height, fmt.glFormat,
+                        GL11.GL_UNSIGNED_BYTE, buf);
+            }
         } else {
             GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0,
                     fmt.glInternalFormat, texWidth, texHeight,
@@ -165,7 +161,7 @@ public class LWJGLTexture implements Texture, Resource {
         if(id != 0) {
             // make sure that our texture is not bound when we try to delete it
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
-            renderer.glDeleteTexture(id);
+            GL11.glDeleteTextures(id);
             id = 0;
         }
         if(cursors != null) {
@@ -192,7 +188,7 @@ public class LWJGLTexture implements Texture, Resource {
         return texHeight;
     }
 
-    boolean bind(Color color) {
+    public boolean bind(Color color) {
         if(id != 0) {
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, id);
             renderer.tintStack.setColor(color);
@@ -201,7 +197,7 @@ public class LWJGLTexture implements Texture, Resource {
         return false;
     }
 
-    boolean bind() {
+    public boolean bind() {
         if(id != 0) {
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, id);
             return true;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -48,10 +48,11 @@ public class LWJGLDynamicImage extends TextureAreaBase implements DynamicImage {
     private final Color tintColor;
     private int id;
     
-    public LWJGLDynamicImage(LWJGLRenderer renderer, int target, int id, int width, int height, Color tintColor) {
+    public LWJGLDynamicImage(LWJGLRenderer renderer, int target, int id,
+            int width, int height, int texWidth, int texHeight, Color tintColor) {
         super(0, 0, width, height,
-                (target == GL11.GL_TEXTURE_2D) ? width : 1f,
-                (target == GL11.GL_TEXTURE_2D) ? height : 1f);
+                (target == GL11.GL_TEXTURE_2D) ? texWidth : 1f,
+                (target == GL11.GL_TEXTURE_2D) ? texHeight : 1f);
         
         this.renderer = renderer;
         this.tintColor = tintColor;
@@ -59,9 +60,17 @@ public class LWJGLDynamicImage extends TextureAreaBase implements DynamicImage {
         this.id = id;
     }
 
+    LWJGLDynamicImage(LWJGLDynamicImage src, Color tintColor) {
+        super(src);
+        this.renderer = src.renderer;
+        this.tintColor = tintColor;
+        this.target = src.target;
+        this.id = src.id;
+    }
+
     public void destroy() {
         if(id != 0) {
-            renderer.glDeleteTexture(id);
+            GL11.glDeleteTextures(id);
             renderer.dynamicImages.remove(this);
         }
     }
@@ -118,7 +127,7 @@ public class LWJGLDynamicImage extends TextureAreaBase implements DynamicImage {
         if(newTintColor.equals(tintColor)) {
             return this;
         }
-        return new LWJGLDynamicImage(renderer, target, id, getWidth(), getHeight(), newTintColor);
+        return new LWJGLDynamicImage(this, newTintColor);
     }
 
     public void draw(AnimationState as, int x, int y) {

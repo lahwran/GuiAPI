@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2011, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  * 
  * All rights reserved.
  * 
@@ -52,6 +52,13 @@ import java.util.logging.Logger;
 /**
  * Root of the TWL class hierarchy.
  *
+ * <p>When subclassing the following methods should be overridden to ensure
+ * correct layout behavior:</p><ul>
+ * <li>{@link #layout() }</li>
+ * <li>{@link #getPreferredInnerWidth() }</li>
+ * <li>{@link #getPreferredInnerHeight() }</li>
+ * </ul>
+ * 
  * <p>The following methods are events and can be overridden when needed:</p><ul>
  * <li>{@link #afterAddToGUI(de.matthiasmann.twl.GUI) }</li>
  * <li>{@link #allChildrenRemoved() }</li>
@@ -70,6 +77,11 @@ import java.util.logging.Logger;
  * <li>{@link #widgetDisabled() }</li>
  * </ul>
  * 
+ * <p>NOTE: The only thread safe methods of TWL are:</p><ul>
+ * <li>{@link #getGUI() }</li>
+ * <li>{@link GUI#invokeLater(java.lang.Runnable) }</li>
+ * </ul>
+ * 
  * @author Matthias Mann
  */
 public class Widget {
@@ -79,8 +91,6 @@ public class Widget {
     public static final StateKey STATE_HAS_FOCUSED_CHILD = StateKey.get("hasFocusedChild");
     public static final StateKey STATE_DISABLED = StateKey.get("disabled");
     
-    private static final int FOCUS_KEY = Event.KEY_TAB;
-
     private static final int LAYOUT_INVALID_LOCAL  = 1;
     private static final int LAYOUT_INVALID_GLOBAL = 3;
     
@@ -145,14 +155,28 @@ public class Widget {
      */
     private static final ThreadLocal<Widget[]> focusTransferInfo = new ThreadLocal<Widget[]>();
     
+    /**
+     * Creates a Widget with it's own animation state
+     * 
+     * <p>The initial theme name is the lower case version of the simple class
+     * name of the concrete subclass - or in pseudo code:</p>
+     * <pre>{@code getClass().getSimpleName().toLowerCase() }</pre>
+     * 
+     * @see #setTheme(java.lang.String) 
+     */
     public Widget() {
         this(null, false);
     }
 
     /**
      * Creates a Widget with a shared animation state
+     * 
+     * <p>The initial theme name is the lower case version of the simple class
+     * name of the concrete subclass - or in pseudo code:</p>
+     * <pre>{@code getClass().getSimpleName().toLowerCase() }</pre>
      *
      * @param animState the animation state to share, can be null
+     * @see #setTheme(java.lang.String) 
      */
     public Widget(AnimationState animState) {
         this(animState, false);
@@ -160,9 +184,15 @@ public class Widget {
 
     /**
      * Creates a Widget with a shared or inherited animation state
+     * 
+     * <p>The initial theme name is the lower case version of the simple class
+     * name of the concrete subclass - or in pseudo code:</p>
+     * <pre>{@code getClass().getSimpleName().toLowerCase() }</pre>
      *
      * @param animState the animation state to share or inherit, can be null
-     * @param inherit true if the animation state should be inherited false for sharing
+     * @param inherit true if the animation state should be inherited, false for sharing
+     * @see AnimationState#AnimationState(de.matthiasmann.twl.AnimationState) 
+     * @see #setTheme(java.lang.String) 
      */
     public Widget(AnimationState animState, boolean inherit) {
         // determine the default theme name from the class name of this instance
@@ -1087,6 +1117,10 @@ public class Widget {
 
     /**
      * Controls the handling of the FOCUS_KEY.
+     * <p>The default is true.</p>
+     * <p>When enabled the focus key (TAB) will cycle through all (indirect)
+     * children which can receive keyboard focus. The order is defined
+     * by {@link #getKeyboardFocusOrder() }.</p>
      * @param focusKeyEnabled if true this widget will handle the focus key.
      */
     public void setFocusKeyEnabled(boolean focusKeyEnabled) {
@@ -1127,6 +1161,19 @@ public class Widget {
      */
     public void setOverlay(Image overlay) {
         this.overlay = overlay;
+    }
+    
+    /**
+     * Returns the mouse cursor which should be used for the given
+     * mouse coordinates and modifiers.
+     * 
+     * The default implementation calls {@link #getMouseCursor() }
+     * 
+     * @param evt only {@link Event#getMouseX() }, {@link Event#getMouseY() } and {@link Event#getModifiers() } are valid.
+     * @return the mouse cursor or null when no mouse cursor is defined for this widget
+     */
+    public MouseCursor getMouseCursor(Event evt) {
+        return getMouseCursor();
     }
 
     public MouseCursor getMouseCursor() {
@@ -1202,8 +1249,8 @@ public class Widget {
         if(index < 0 || index > children.size()) {
             throw new IndexOutOfBoundsException();
         }
+        child.setParent(this);  // can throw exception - see PopupWindow
         children.add(index, child);
-        child.parent = this;
         GUI gui = getGUI();
         if(gui != null) {
             child.recursivelySetGUI(gui);
@@ -2141,6 +2188,13 @@ public class Widget {
         }
     }
 
+    /**
+     * Returns all children of this widget in their focus travel order.
+     * <p>The returned list is only iterated and not stored.</p>
+     * <p>The default implementation just returns an unmodifable view of
+     * the internal children list.</p>
+     * @return a read only collection with all children in focus order.
+     */
     protected List<Widget> getKeyboardFocusOrder() {
         if(children == null) {
             return Collections.<Widget>emptyList();
@@ -2305,6 +2359,10 @@ public class Widget {
     // start of internal stuff
     //
     
+    void setParent(Widget parent) {
+        this.parent = parent;
+    }
+    
     private void unparentChild(Widget child) {
         GUI gui = getGUI();
         if(child.hasOpenPopup) { 
@@ -2359,6 +2417,7 @@ public class Widget {
     private void recursivelyClearGUI(GUI gui) {
         assert guiInstance == gui : "guiInstance must be null";
         guiInstance = null;
+        themeManager = null;
         if(children != null) {
             for(int i=children.size() ; i-->0 ;) {
                 children.get(i).recursivelyClearGUI(gui);
@@ -2543,8 +2602,12 @@ public class Widget {
                 extraRight += effectExtra[2];
                 extraBottom += effectExtra[3];
             }
+            if(offscreenSurface != null && !ro.needPainting(gui, parent, offscreenSurface)) {
+                ro.paintOffscreenSurface(gui, this, offscreenSurface);
+                return;
+            }
             offscreenSurface = offscreenRenderer.startOffscreenRendering(
-                    offscreenSurface, posX-extraLeft, posY-extraTop,
+                    this, offscreenSurface, posX-extraLeft, posY-extraTop,
                     width+extraLeft+extraRight, height+extraTop+extraBottom);
             if(offscreenSurface != null) {
                 try {
@@ -2699,8 +2762,17 @@ public class Widget {
         return sb.append(theme);
     }
 
+    Event translateMouseEvent(Event evt) {
+        if(renderOffscreen instanceof OffscreenMouseAdjustments) {
+            int[] newXY = ((OffscreenMouseAdjustments)renderOffscreen).adjustMouseCoordinates(this, evt);
+            evt = evt.createSubEvent(newXY[0], newXY[1]);
+        }
+        return evt;
+    }
+    
     Widget routeMouseEvent(Event evt) {
         assert !evt.isMouseDragEvent();
+        evt = translateMouseEvent(evt);
         if(children != null) {
             for(int i=children.size(); i-->0 ;) {
                 Widget child = children.get(i);
@@ -2792,10 +2864,8 @@ public class Widget {
 
     private boolean handleKeyEvent(Event evt) {
         if(children != null) {
-            if(focusKeyEnabled && evt.getKeyCode() == FOCUS_KEY &&
-                    ((evt.getModifiers() & (Event.MODIFIER_CTRL|Event.MODIFIER_META|Event.MODIFIER_ALT)) == 0)) {
-                handleFocusKeyEvent(evt);
-                return true;
+            if(focusKeyEnabled && guiInstance != null) {
+                guiInstance.setFocusKeyWidget(this);
             }
             if(focusChild != null && focusChild.isVisible()) {
                 if(focusChild.handleEvent(evt)) {
@@ -2819,7 +2889,7 @@ public class Widget {
         return false;
     }
 
-    private void handleFocusKeyEvent(Event evt) {
+    void handleFocusKeyEvent(Event evt) {
         if(evt.isKeyPressedEvent()) {
             if((evt.getModifiers() & Event.MODIFIER_SHIFT) != 0) {
                 focusPrevChild();
@@ -2845,7 +2915,7 @@ public class Widget {
         }
         return true;
     }
-
+    
     void collectLayoutLoop(ArrayList<Widget> result) {
         if(layoutInvalid != 0) {
             result.add(this);
@@ -2903,5 +2973,37 @@ public class Widget {
          * @return the extra area in {@code top, left, right, bottom} order or null
          */
         public int[] getEffectExtraArea(Widget widget);
+        
+        /**
+         * Called before offscreen rendering is started.
+         * 
+         * <p>NOTE: when this function returns false none of the paint methods
+         * of that widget are called which might effect some widgets.</p>
+         * 
+         * <p>If you are unsure it is always safer to return true.</p>
+         * 
+         * @param gui the GUI instance
+         * @param widget the widget
+         * @param surface the previous offscreen surface - never null
+         * @return true if the surface needs to be updated, false if no new rendering should be done
+         */
+        public boolean needPainting(GUI gui, Widget widget, OffscreenSurface surface);
+    }
+    
+    public interface OffscreenMouseAdjustments extends RenderOffscreen {
+        
+        /**
+         * Called when mouse events are routed for the widget.
+         * 
+         * <p>All mouse coordinates in TWL are absolute.</p>
+         * 
+         * <p>The returned object can be reused on the next call and should not
+         * be stored by the caller.</p>
+         * 
+         * @param widget the widget
+         * @param evt the mouse event
+         * @return the new mouse coordinates in {@code x, y} order
+         */
+        public int[] adjustMouseCoordinates(Widget widget, Event evt);
     }
 }

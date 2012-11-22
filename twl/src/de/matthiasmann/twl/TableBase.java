@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -207,6 +207,7 @@ public abstract class TableBase extends Widget implements ScrollPane.Scrollable,
     protected SizeSequence rowModel;
     protected boolean hasCellWidgetCreators;
     protected ColumnHeader[] columnHeaders;
+    protected CellRenderer[] columnDefaultCellRenderer;
     protected TableSelectionManager selectionManager;
     protected KeyboardSearchHandler keyboardSearchHandler;
     protected DragListener dragListener;
@@ -258,6 +259,7 @@ public abstract class TableBase extends Widget implements ScrollPane.Scrollable,
         this.removeCellWidgetsFunction = new RemoveCellWidgets();
         this.insertCellWidgetsFunction = new InsertCellWidgets();
         this.columnModel = new ColumnSizeSequence();
+        this.columnDefaultCellRenderer = new CellRenderer[8];
         this.cellWidgetContainer = new CellWidgetContainer();
 
         super.insertChild(cellWidgetContainer, 0);
@@ -497,11 +499,20 @@ public abstract class TableBase extends Widget implements ScrollPane.Scrollable,
 
     @Override
     public int getPreferredInnerWidth() {
+        if(getInnerWidth() == 0) {
+            return columnModel.computePreferredWidth();
+        }
+        if(updateAllColumnWidth) {
+            updateAllColumnWidth();
+        }
         return (numColumns > 0) ? getColumnEndPosition(numColumns-1) : 0;
     }
 
     @Override
     public int getPreferredInnerHeight() {
+        if(autoSizeAllRows) {
+            autoSizeAllRows();
+        }
         return columnHeaderHeight + 1 + // +1 for drop marker
                 ((numRows > 0) ? getRowEndPosition(numRows-1) : 0);
     }
@@ -925,11 +936,52 @@ public abstract class TableBase extends Widget implements ScrollPane.Scrollable,
         return false;
     }
 
-    protected CellRenderer getCellRenderer(Object data) {
+    /**
+     * Sets the default cell renderer for the specified column
+     * The column numbers are not affected by model changes.
+     * 
+     * @param column the column, must eb &gt;= 0
+     * @param cellRenderer the CellRenderer to use or null to restore the global default
+     */
+    public void setColumnDefaultCellRenderer(int column, CellRenderer cellRenderer) {
+        if(column >= columnDefaultCellRenderer.length) {
+            CellRenderer[] tmp = new CellRenderer[Math.max(column+1, numColumns)];
+            System.arraycopy(columnDefaultCellRenderer, 0, tmp, 0, columnDefaultCellRenderer.length);
+            columnDefaultCellRenderer = tmp;
+        }
+
+        columnDefaultCellRenderer[column] = cellRenderer;
+    }
+    
+    /**
+     * Returns the default cell renderer for the specified column
+     * @param column the column, must eb &gt;= 0
+     * @return the previously set CellRenderer or null if non was set
+     */
+    public CellRenderer getColumnDefaultCellRenderer(int column) {
+        if(column < columnDefaultCellRenderer.length) {
+            return columnDefaultCellRenderer[column];
+        }
+        return null;
+    }
+    
+    protected CellRenderer getCellRendererNoDefault(Object data) {
         Class<? extends Object> dataClass = data.getClass();
-        CellRenderer cellRenderer = cellRenderers.get(dataClass);
+        return cellRenderers.get(dataClass);
+    }
+    
+    protected CellRenderer getDefaultCellRenderer(int col) {
+        CellRenderer cellRenderer = getColumnDefaultCellRenderer(col);
         if(cellRenderer == null) {
             cellRenderer = stringCellRenderer;
+        }
+        return cellRenderer;
+    }
+    
+    protected CellRenderer getCellRenderer(Object data, int col) {
+        CellRenderer cellRenderer = getCellRendererNoDefault(data);
+        if(cellRenderer == null) {
+            cellRenderer = getDefaultCellRenderer(col);
         }
         return cellRenderer;
     }
@@ -937,7 +989,7 @@ public abstract class TableBase extends Widget implements ScrollPane.Scrollable,
     protected CellRenderer getCellRenderer(int row, int col, TreeTableNode node) {
         final Object data = getCellData(row, col, node);
         if(data != null) {
-            CellRenderer cellRenderer = getCellRenderer(data);
+            CellRenderer cellRenderer = getCellRenderer(data, col);
             cellRenderer.setCellData(row, col, data);
             return cellRenderer;
         }
@@ -1378,8 +1430,10 @@ public abstract class TableBase extends Widget implements ScrollPane.Scrollable,
     }
 
     protected void updateAllColumnWidth() {
-        columnModel.initializeAll(numColumns);
-        updateAllColumnWidth = false;
+        if(getInnerWidth() > 0) {
+            columnModel.initializeAll(numColumns);
+            updateAllColumnWidth = false;
+        }
     }
 
     protected void updateAll() {
@@ -1409,7 +1463,7 @@ public abstract class TableBase extends Widget implements ScrollPane.Scrollable,
             updateColumnHeader(i);
         }
         updateColumnHeaderNumbers();
-
+        
         if(selectionManager != null) {
             selectionManager.modelChanged();
         }
@@ -1601,14 +1655,20 @@ public abstract class TableBase extends Widget implements ScrollPane.Scrollable,
     protected class ColumnSizeSequence extends SizeSequence {
         @Override
         protected void initializeSizes(int index, int count) {
-            if(isFixedWidthMode()) {
-                computeColumnHeaderLayout();
-                for(int i=0 ; i<count ; i++,index++) {
-                    table[index] = clampColumnWidth(columnHeaders[i].springWidth);
+            boolean useSprings = isFixedWidthMode();
+            if(!useSprings) {
+                int sum = 0;
+                for(int i=0 ; i<count ; i++) {
+                    int width = computePreferredColumnWidth(index+i);
+                    table[index+i] = width;
+                    sum += width;
                 }
-            } else {
-                for(int i=0 ; i<count ; i++,index++) {
-                    table[index] = computePreferredColumnWidth(index);
+                useSprings = sum < getInnerWidth();
+            }
+            if(useSprings) {
+                computeColumnHeaderLayout();
+                for(int i=0 ; i<count ; i++) {
+                    table[index+i] = clampColumnWidth(columnHeaders[i].springWidth);
                 }
             }
         }
@@ -1633,6 +1693,25 @@ public abstract class TableBase extends Widget implements ScrollPane.Scrollable,
                 }
                 g.setSize(DialogLayout.AXIS_X, 0, getInnerWidth());
             }
+        }
+        int computePreferredWidth() {
+            int count = getNumColumns();
+            if(!isFixedWidthMode()) {
+                int sum = 0;
+                for(int i=0 ; i<count ; i++) {
+                    int width = computePreferredColumnWidth(i);
+                    sum += width;
+                }
+                return sum;
+            }
+            if(columnHeaders != null) {
+                DialogLayout.SequentialGroup g = (DialogLayout.SequentialGroup)(new DialogLayout()).createSequentialGroup();
+                for(ColumnHeader h : columnHeaders) {
+                    g.addSpring(h.spring);
+                }
+                return g.getPrefSize(DialogLayout.AXIS_X);
+            }
+            return 0;
         }
     }
 

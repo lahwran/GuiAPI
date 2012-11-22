@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2011, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -31,6 +31,7 @@ package de.matthiasmann.twl.theme;
 
 import de.matthiasmann.twl.Alignment;
 import de.matthiasmann.twl.Border;
+import de.matthiasmann.twl.Color;
 import de.matthiasmann.twl.DebugHook;
 import de.matthiasmann.twl.DialogLayout;
 import de.matthiasmann.twl.Dimension;
@@ -43,10 +44,13 @@ import de.matthiasmann.twl.renderer.Image;
 import de.matthiasmann.twl.PositionAnimatedPanel;
 import de.matthiasmann.twl.ThemeInfo;
 import de.matthiasmann.twl.renderer.CacheContext;
+import de.matthiasmann.twl.renderer.FontMapper;
 import de.matthiasmann.twl.renderer.FontParameter;
 import de.matthiasmann.twl.renderer.Renderer;
 import de.matthiasmann.twl.utils.AbstractMathInterpreter;
 import de.matthiasmann.twl.utils.StateExpression;
+import de.matthiasmann.twl.utils.StateSelect;
+import de.matthiasmann.twl.utils.StringList;
 import de.matthiasmann.twl.utils.TextUtil;
 import de.matthiasmann.twl.utils.XMLParser;
 import java.io.IOException;
@@ -257,7 +261,7 @@ public class ThemeManager {
         constants.put("MAX", Short.MAX_VALUE);
     }
     
-    private void parseThemeFile(URL url) throws XmlPullParserException, IOException {
+    private void parseThemeFile(URL url) throws IOException {
         try {
             XMLParser xmlp = new XMLParser(url);
             try {
@@ -268,6 +272,10 @@ public class ThemeManager {
             } finally {
                 xmlp.close();
             }
+        } catch (XmlPullParserException ex) {
+            throw new ThemeException(ex.getMessage(), url, ex.getLineNumber(), ex.getColumnNumber(), ex);
+        } catch (ThemeException ex) {
+            throw ex;
         } catch (Exception ex) {
             throw (IOException)(new IOException("while parsing Theme XML: " + url).initCause(ex));
         }
@@ -284,7 +292,12 @@ public class ThemeManager {
                 imageManager.parseImages(xmlp, baseUrl);
             } else if("include".equals(tagName)) {
                 String fontFileName = xmlp.getAttributeNotNull("filename");
-                parseThemeFile(new URL(baseUrl, fontFileName));
+                try {
+                    parseThemeFile(new URL(baseUrl, fontFileName));
+                } catch (ThemeException ex) {
+                    ex.addIncludedBy(baseUrl, xmlp.getLineNumber(), xmlp.getColumnNumber());
+                    throw ex;
+                }
                 xmlp.nextTag();
             } else {
                 final String name = xmlp.getAttributeNotNull("name");
@@ -358,28 +371,126 @@ public class ThemeManager {
         InputMap im = base.addKeyStrokes(keyStrokes);
         return im;
     }
-
+    
     private Font parseFont(XMLParser xmlp, URL baseUrl) throws XmlPullParserException, IOException {
-        Map<String, String> params = xmlp.getUnusedAttributes();
+        URL url = baseUrl;
+        String fileName = xmlp.getAttributeValue(null, "filename");
+        if(fileName != null) {
+            url = new URL(url, fileName);
+        }
+        
+        StringList fontFamilies = parseList(xmlp, "families");
+        int fontSize = 0;
+        int fontStyle = 0;
+        if(fontFamilies != null) {
+            fontSize = xmlp.parseIntFromAttribute("size");
+            StringList style = parseList(xmlp, "style");
+            while(style != null) {
+                if("bold".equalsIgnoreCase(style.getValue())) {
+                    fontStyle |= FontMapper.STYLE_BOLD;
+                } else if("italic".equalsIgnoreCase(style.getValue())) {
+                    fontStyle |= FontMapper.STYLE_ITALIC;
+                }
+                style = style.getNext();
+            }
+        }
+        
+        FontParameter baseParams = new FontParameter();
+        parseFontParameter(xmlp, baseParams);
         ArrayList<FontParameter> fontParams = new ArrayList<FontParameter>();
-        params.remove("name");
-        params.remove("default");
+        ArrayList<StateExpression> stateExpr = new ArrayList<StateExpression>();
+        
         xmlp.nextTag();
         while(!xmlp.isEndTag()) {
             xmlp.require(XmlPullParser.START_TAG, null, "fontParam");
+            
             StateExpression cond = ParserUtil.parseCondition(xmlp);
             if(cond == null) {
                 throw xmlp.error("Condition required");
             }
-            Map<String, String> condParams = xmlp.getUnusedAttributes();
-            condParams.remove("if");
-            condParams.remove("unless");
-            fontParams.add(new FontParameter(cond, condParams));
+            stateExpr.add(cond);
+            
+            FontParameter params = new FontParameter(baseParams);
+            parseFontParameter(xmlp, params);
+            fontParams.add(params);
+            
             xmlp.nextTag();
             xmlp.require(XmlPullParser.END_TAG, null, "fontParam");
             xmlp.nextTag();
         }
-        return renderer.loadFont(baseUrl, params, fontParams);
+        
+        fontParams.add(baseParams);
+        StateSelect stateSelect = new StateSelect(stateExpr);
+        FontParameter[] stateParams = fontParams.toArray(new FontParameter[fontParams.size()]);
+        
+        if(fontFamilies != null) {
+            FontMapper fontMapper = renderer.getFontMapper();
+            if(fontMapper != null) {
+                Font font = fontMapper.getFont(fontFamilies, fontSize, fontStyle, stateSelect, stateParams);
+                if(font != null) {
+                    return font;
+                }
+            }
+        }
+        
+        return renderer.loadFont(url, stateSelect, stateParams);
+    }
+    
+    private void parseFontParameter(XMLParser xmlp, FontParameter fp) throws XmlPullParserException {
+        for(int i=0,n=xmlp.getAttributeCount() ; i<n ; i++) {
+            if(xmlp.isAttributeUnused(i)) {
+                String name = xmlp.getAttributeName(i);
+                FontParameter.Parameter<?> type = FontParameter.getParameter(name);
+                if(type != null) {
+                    String value = xmlp.getAttributeValue(i);
+                    Class<?> dataClass = type.getDataClass();
+                    
+                    if(dataClass == Color.class) {
+                        @SuppressWarnings("unchecked")
+                        FontParameter.Parameter<Color> colorType = (FontParameter.Parameter<Color>)type;
+                        fp.put(colorType, ParserUtil.parseColor(xmlp, value, constants));
+                        
+                    } else if(dataClass == Integer.class) {
+                        @SuppressWarnings("unchecked")
+                        FontParameter.Parameter<Integer> intType = (FontParameter.Parameter<Integer>)type;
+                        fp.put(intType, parseMath(xmlp, value).intValue());
+                        
+                    } else if(dataClass == Boolean.class) {
+                        @SuppressWarnings("unchecked")
+                        FontParameter.Parameter<Boolean> boolType = (FontParameter.Parameter<Boolean>)type;
+                        fp.put(boolType, xmlp.parseBool(value));
+                        
+                    } else if(dataClass == String.class) {
+                        @SuppressWarnings("unchecked")
+                        FontParameter.Parameter<String> strType = (FontParameter.Parameter<String>)type;
+                        fp.put(strType, value);
+                        
+                    } else {
+                        throw xmlp.error("dataClass not yet implemented: " + dataClass);
+                    }
+                }
+            }
+        }
+    }
+    
+    private static StringList parseList(XMLParser xmlp, String name) {
+        String value = xmlp.getAttributeValue(null, name);
+        if(value != null) {
+            return parseList(value, 0);
+        }
+        return null;
+    }
+    
+    private static StringList parseList(String value, int idx) {
+        idx = TextUtil.skipSpaces(value, idx);
+        if(idx >= value.length()) {
+            return null;
+        }
+        
+        int end = TextUtil.indexOf(value, ',', idx);
+        String part = TextUtil.trim(value, idx, end);
+        
+        return new StringList(part, parseList(value, end+1));
     }
 
     private void parseThemeWildcardRef(XMLParser xmlp, ThemeInfoImpl parent) throws IOException, XmlPullParserException {

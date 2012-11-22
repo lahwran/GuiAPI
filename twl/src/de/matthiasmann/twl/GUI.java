@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2011, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  * 
  * All rights reserved.
  * 
@@ -120,6 +120,7 @@ public final class GUI extends Widget {
     private Widget lastMouseClickWidget;
     private PopupWindow boundDragPopup;
     private Runnable boundDragCallback;
+    private Widget focusKeyWidget;
     
     private int mouseIdleTime = 60;
     private boolean mouseIdleState;
@@ -550,7 +551,10 @@ public final class GUI extends Widget {
      * <li> {@link #setCursor() }
      * </ol>
      * 
-     * This is the easiest method to use this GUI
+     * This is the easiest method to use this GUI.
+     * 
+     * <p>When not using this method care must be taken to invoke the methods
+     * in the right order. See the javadoc of the individual methods for details.</p>
      */
     public void update() {
         setSize();
@@ -579,6 +583,10 @@ public final class GUI extends Widget {
      * Updates the current time returned by {@code getCurrentTime} by calling
      * {@link Renderer#getTimeMillis() } and computes the delta time since the last update.
      *
+     * <p>This must be called exactly <b>once</b> per frame and befiore processing
+     * input events or calling {@link #updateTimers() }. See {@link #update() }
+     * for the sequence in which the methods of this class should be called.</p>
+     * 
      * @see #getCurrentTime()
      * @see #getTimeMillis()
      */
@@ -590,7 +598,9 @@ public final class GUI extends Widget {
 
     /**
      * Updates all active timers with the delta time computed by {@code updateTime}.
-     * This method must be called exactly once after a call to {@code updateTime}.
+     * 
+     * <p>This method must be called exactly once after a call to {@code updateTime}.</p>
+     * 
      * @see #updateTime() 
      */
     public void updateTimers() {
@@ -656,19 +666,42 @@ public final class GUI extends Widget {
     /**
      * Sets the cursor from the widget under the mouse
      *
+     * <p>If the widget is disabled or did not define a cursor then
+     * it's parent widget is tried. If no cursor was found the default
+     * OS cursor will be displayed.</p>
+     * 
      * @see Renderer#setCursor(de.matthiasmann.twl.renderer.MouseCursor) 
+     * @see Widget#getMouseCursor(de.matthiasmann.twl.Event) 
      */
     public void setCursor() {
+        event.type = Event.Type.MOUSE_MOVED;
         Widget widget = getWidgetUnderMouse();
-        if(widget != null && widget.isEnabled()) {
-            MouseCursor cursor = widget.getMouseCursor();
-            renderer.setCursor(cursor);
+        MouseCursor cursor = null;
+        while(widget != null) {
+            if(widget.isEnabled()) {
+                cursor = widget.getMouseCursor(event);
+                if(cursor != null) {
+                    break;
+                }
+            }
+            widget = widget.getParent();
         }
+        renderer.setCursor(cursor);
     }
 
     /**
-     * Polls input by calling {@link Input#pollInput(de.matthiasmann.twl.GUI) } if an input source was specified.
-     * If {@code pollInput} returned false then {@link #clearKeyboardState() } and {@link #clearMouseState() } are called.
+     * Polls input by calling {@link Input#pollInput(de.matthiasmann.twl.GUI) }
+     * if an input source was specified, otherwise it does nothing.
+     * 
+     * <p>If {@code pollInput} returned false then {@link #clearKeyboardState() }
+     * and {@link #clearMouseState() } are called.</p>
+     * 
+     * <p>If you don't want to use polled input you can easily use a push model
+     * for handling input. Just call the following methods:</p><ul>
+     * <li>{@link #handleKey(int, char, boolean) } for every keyboard event
+     * <li>{@link #handleMouse(int, int, int, boolean) } for every mouse event (buttons or move)
+     * <li>{@link #handleMouseWheel(int) } for any mouse wheel event
+     * </ul> These metods (including this one) needs to be called after {@link #updateTime() }
      */
     public void handleInput() {
         if(input != null && !input.pollInput(this)) {
@@ -918,10 +951,10 @@ public final class GUI extends Widget {
 
             if(pressed) {
                 keyRepeatDelay = KEYREPEAT_INITIAL_DELAY;
-                return sendEvent(Event.Type.KEY_PRESSED);
+                return sendKeyEvent(Event.Type.KEY_PRESSED);
             } else {
                 keyRepeatDelay = NO_REPEAT;
-                return sendEvent(Event.Type.KEY_RELEASED);
+                return sendKeyEvent(Event.Type.KEY_RELEASED);
             }
         } else {
             keyRepeatDelay = NO_REPEAT;
@@ -956,7 +989,7 @@ public final class GUI extends Widget {
                 keyEventTime = curTime;
                 keyRepeatDelay = KEYREPEAT_INTERVAL_DELAY;
                 event.keyRepeated = true;
-                sendEvent(Event.Type.KEY_PRESSED);  // refire last key event
+                sendKeyEvent(Event.Type.KEY_PRESSED);  // refire last key event
             }
         }
     }
@@ -1014,7 +1047,7 @@ public final class GUI extends Widget {
         
         if(target != null) {
             if(target.isEnabled() || !isMouseAction(event)) {
-                target.handleEvent(event);
+                target.handleEvent(target.translateMouseEvent(event));
             }
             return target;
         } else {
@@ -1033,12 +1066,32 @@ public final class GUI extends Widget {
         }
     }
 
-    private boolean sendEvent(Event.Type type) {
-        assert !type.isMouseEvent;
+    private static final int FOCUS_KEY = Event.KEY_TAB;
+    
+    boolean isFocusKey() {
+        return event.keyCode == FOCUS_KEY &&
+                    ((event.modifier & (Event.MODIFIER_CTRL|Event.MODIFIER_META|Event.MODIFIER_ALT)) == 0);
+    }
+    
+    void setFocusKeyWidget(Widget widget) {
+        if(focusKeyWidget == null && isFocusKey()) {
+            focusKeyWidget = widget;
+        }
+    }
+    
+    private boolean sendKeyEvent(Event.Type type) {
+        assert type.isKeyEvent;
         popupEventOccured = false;
+        focusKeyWidget = null;
         event.type = type;
         event.dragEvent = false;
-        return getTopPane().handleEvent(event);
+        boolean handled = getTopPane().handleEvent(event);
+        if(!handled && focusKeyWidget != null) {
+            focusKeyWidget.handleFocusKeyEvent(event);
+            handled = true;
+        }
+        focusKeyWidget = null;  // allow GC
+        return handled;
     }
 
     private void sendPopupEvent(Event.Type type) {
@@ -1089,6 +1142,7 @@ public final class GUI extends Widget {
         popupEventOccured = true;
         closeInfoFromWidget(popup);
         requestKeyboardFocus(getTopPane());
+        resendLastMouseMove();
     }
 
     boolean hasOpenPopups(Widget owner) {

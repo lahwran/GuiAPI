@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2011, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -38,11 +38,9 @@ import de.matthiasmann.twl.renderer.Font;
 import de.matthiasmann.twl.renderer.Font2;
 import de.matthiasmann.twl.renderer.FontCache;
 import de.matthiasmann.twl.renderer.FontParameter;
-import de.matthiasmann.twl.utils.StateExpression;
 import de.matthiasmann.twl.utils.StateSelect;
 import de.matthiasmann.twl.utils.TextUtil;
-import java.util.Collection;
-import java.util.Map;
+import java.nio.FloatBuffer;
 
 /**
  *
@@ -55,10 +53,10 @@ public class LWJGLFont implements Font, Font2 {
 
     private final LWJGLRenderer renderer;
     private final BitmapFont font;
-    public final FontState[] fontStates;
+    private final FontState[] fontStates;
     private final StateSelect stateSelect;
     private int[] multiLineInfo;
-    
+
     public LWJGLFont clone()
     {
     	return new LWJGLFont(this);
@@ -72,76 +70,24 @@ public class LWJGLFont implements Font, Font2 {
     	fontStates = new FontState[oldFont.fontStates.length];
     	for (int i = 0; i < fontStates.length; i++) {
     		FontState oldState = oldFont.fontStates[i];
-    		fontStates[i] = new FontState(oldState.color,oldState.offsetX,oldState.offsetY,oldState.style,oldState.underlineOffset);
+    		fontStates[i] = new FontState(oldState);
 		}
     }
-
-    LWJGLFont(LWJGLRenderer renderer, BitmapFont font, Map<String, String> params, Collection<FontParameter> condParams) {
+    
+    
+    LWJGLFont(LWJGLRenderer renderer, BitmapFont font, StateSelect select, FontParameter ... parameterList) {
         this.renderer = renderer;
         this.font = font;
+        this.stateSelect = select;
+        this.fontStates = new FontState[parameterList.length];
         
-        StateExpression[] expr = new StateExpression[condParams.size()];
-        fontStates = new FontState[expr.length + 1];
-
-        int idx = 0;
-        for(FontParameter p : condParams) {
-            fontStates[idx] = createFontState(p.getParams(), params);
-            expr[idx++] = p.getCondition();
+        for(int i=0 ; i<parameterList.length ; i++) {
+            fontStates[i] = new FontState(parameterList[i]);
         }
-        fontStates[idx] = createFontState(params, null);
-        stateSelect = new StateSelect(expr);
     }
 
-    private FontState createFontState(Map<String, String> params, Map<String, String> baseParams) {
-        String colorStr = get(params, baseParams, "color");
-        Color color;
-        if(colorStr == null) {
-            color = Color.WHITE; 
-        } else {
-            color = Color.parserColor(colorStr);
-            if(color == null) {
-                throw new IllegalArgumentException("unknown color name: " + colorStr);
-            }
-        }
-        int offsetX = parseInt(get(params, baseParams, "offsetX"), 0);
-        int offsetY = parseInt(get(params, baseParams, "offsetY"), 0);
-        int style = 0;
-        int underlineOffset = parseInt(get(params, baseParams, "underlineOffset"), 0);
-        if(parseBoolean(get(params, baseParams, "underline"))) {
-            style |= STYLE_UNDERLINE;
-        }
-        if(parseBoolean(get(params, baseParams, "linethrough"))) {
-            style |= STYLE_LINETHROUGH;
-        }
-        FontState p = new FontState(color, offsetX, offsetY, style, underlineOffset);
-        return p;
-    }
-    
-    private static String get(Map<String, String> params, Map<String, String> baseParams, String key) {
-        String value = params.get(key);
-        // use contains to mimick behavior of putAll
-        if(value == null && baseParams != null && !params.containsKey(key)) {
-            value = baseParams.get(key);
-        }
-        return value;
-    }
-
-    private static int parseInt(String valueStr, int defaultValue) {
-        if(valueStr == null) {
-            return defaultValue;
-        }
-        return Integer.parseInt(valueStr);
-    }
-
-    private static boolean parseBoolean(String valueStr) {
-        if(valueStr == null) {
-            return false;
-        }
-        return Boolean.parseBoolean(valueStr);
-    }
-    
     public FontState evalFontState(AnimationState as) {
-        return fontStates[stateSelect.evaluate(as, stateSelect.getNumExpressions())];
+        return fontStates[stateSelect.evaluate(as)];
     }
 
     private int[] getMultiLineInfo(int numLines) {
@@ -365,7 +311,7 @@ public class LWJGLFont implements Font, Font2 {
         if(cache == null) {
             cache = new LWJGLAttributedStringFontCache(renderer, font);
         }
-        cache.allocateVA(end - start);
+        FloatBuffer va = cache.allocate(end - start);
         attributedString.setPosition(start);
         BitmapFont.Glyph lastGlyph = null;
         int x = 0;
@@ -397,7 +343,7 @@ public class LWJGLFont implements Font, Font2 {
                     }
                     lastGlyph = g;
                     if(g.width > 0 && g.height > 0) {
-                        g.draw(cache.va, x, y);
+                        g.draw(va, x, y);
                         runLength++;
                     }
                     x += g.xadvance;
@@ -435,20 +381,46 @@ public class LWJGLFont implements Font, Font2 {
         return cache;
     }
     
-    public static class FontState {
-        Color color;
-        int offsetX;
-        int offsetY;
-        int style;
-        int underlineOffset;
+	public static class FontState {
+		Color color;
+		int offsetX;
+		int offsetY;
+		int style;
+		int underlineOffset;
 
-        public FontState(Color color, int offsetX, int offsetY, int style, int underlineOffset) {
-            this.color = color;
-            this.offsetX = offsetX;
-            this.offsetY = offsetY;
-            this.style = style;
-            this.underlineOffset = underlineOffset;
-        }
+		FontState(FontParameter fontParam) {
+			int lineStyle = 0;
+			if (fontParam.get(FontParameter.UNDERLINE)) {
+				lineStyle |= STYLE_UNDERLINE;
+			}
+			if (fontParam.get(FontParameter.LINETHROUGH)) {
+				lineStyle |= STYLE_LINETHROUGH;
+			}
+
+			this.color = fontParam.get(FontParameter.COLOR);
+			this.offsetX = fontParam.get(LWJGLRenderer.FONTPARAM_OFFSET_X);
+			this.offsetY = fontParam.get(LWJGLRenderer.FONTPARAM_OFFSET_Y);
+			this.style = lineStyle;
+			this.underlineOffset = fontParam
+					.get(LWJGLRenderer.FONTPARAM_UNDERLINE_OFFSET);
+		}
+		
+		public FontState(FontState oldState) {
+			this.color = oldState.color;
+			this.offsetX = oldState.offsetX;
+			this.offsetY = oldState.offsetY;
+			this.style = oldState.style;
+			this.underlineOffset = oldState.underlineOffset;
+		}
+
+		public FontState(Color color, int offsetX, int offsetY, int style,
+				int underlineOffset) {
+			this.color = color;
+			this.offsetX = offsetX;
+			this.offsetY = offsetY;
+			this.style = style;
+			this.underlineOffset = underlineOffset;
+		}
 
 		public Color getColor() {
 			return color;
@@ -501,5 +473,6 @@ public class LWJGLFont implements Font, Font2 {
 				style ^= 2;
 			}
 		}
-    }
+
+	}
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2011, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -35,6 +35,8 @@ import de.matthiasmann.twl.renderer.AnimationState.StateKey;
 import de.matthiasmann.twl.textarea.TextAreaModel;
 import de.matthiasmann.twl.renderer.Font;
 import de.matthiasmann.twl.renderer.FontCache;
+import de.matthiasmann.twl.renderer.FontMapper;
+import de.matthiasmann.twl.renderer.FontParameter;
 import de.matthiasmann.twl.renderer.Image;
 import de.matthiasmann.twl.renderer.MouseCursor;
 import de.matthiasmann.twl.renderer.Renderer;
@@ -43,8 +45,13 @@ import de.matthiasmann.twl.textarea.Style;
 import de.matthiasmann.twl.textarea.StyleAttribute;
 import de.matthiasmann.twl.textarea.StyleSheet;
 import de.matthiasmann.twl.textarea.StyleSheetResolver;
+import de.matthiasmann.twl.textarea.TextDecoration;
 import de.matthiasmann.twl.textarea.Value;
+import de.matthiasmann.twl.theme.StateSelectImage;
 import de.matthiasmann.twl.utils.CallbackSupport;
+import de.matthiasmann.twl.utils.StateExpression;
+import de.matthiasmann.twl.utils.StateSelect;
+import de.matthiasmann.twl.utils.StringList;
 import de.matthiasmann.twl.utils.TextUtil;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -78,6 +85,25 @@ public class TextArea extends Widget {
          */
         public void handleLinkClicked(String href);
     }
+    
+    public interface Callback2 extends Callback {
+        /**
+         * Called for {@code MOUSE_BTNDOWN}, {@code MOUSE_BTNUP} and {@code MOUSE_CLICKED}
+         * events performed over elements.
+         * 
+         * <p>This callback is fired before {@link Callback#handleLinkClicked(java.lang.String) }</p>
+         * 
+         * <p>This callback should not modify the model - if this feature is required use
+         * {@link GUI#invokeLater(java.lang.Runnable) }.</p>
+         * 
+         * @param evt the mouse event
+         * @param element the element under the mouse
+         * @see Event.Type#MOUSE_BTNDOWN
+         * @see Event.Type#MOUSE_BTNUP
+         * @see Event.Type#MOUSE_CLICKED
+         */
+        public void handleMouseButton(Event evt, TextAreaModel.Element element);
+    }
 
     public static final StateKey STATE_HOVER = StateKey.get("hover");
     
@@ -101,10 +127,12 @@ public class TextArea extends Widget {
 
     private final LClip layoutRoot;
     private final ArrayList<LImage> allBGImages;
-    private final AnimationState elementsAnimationState;
+    private final RenderInfo renderInfo;
     private boolean inLayoutCode;
     private boolean forceRelayout;
     private Dimension preferredInnerSize;
+    private FontMapper fontMapper;
+    private FontMapperCacheEntry[] fontMapperCache;
 
     private int lastMouseX;
     private int lastMouseY;
@@ -113,7 +141,6 @@ public class TextArea extends Widget {
     private int dragStartX;
     private int dragStartY;
     private LElement curLElementUnderMouse;
-    private long hoverUpdateTime;
 
     public TextArea() {
         this.widgets = new HashMap<String, Widget>();
@@ -122,15 +149,7 @@ public class TextArea extends Widget {
         this.imageResolvers = new ArrayList<ImageResolver>();
         this.layoutRoot = new LClip(null);
         this.allBGImages = new ArrayList<LImage>();
-        this.elementsAnimationState = new AnimationState(getAnimationState()) {
-            @Override
-            public int getAnimationTime(StateKey stateKey) {
-                if(stateKey == STATE_HOVER) {
-                    return getHoverAnimationTime();
-                }
-                return super.getAnimationTime(stateKey);
-            }
-        };
+        this.renderInfo = new RenderInfo(getAnimationState());
         
         this.modelCB = new Runnable() {
             public void run() {
@@ -310,7 +329,8 @@ public class TextArea extends Widget {
     @Override
     protected void afterAddToGUI(GUI gui) {
         super.afterAddToGUI(gui);
-        hoverUpdateTime = getTime();
+        renderInfo.asNormal.setGUI(gui);
+        renderInfo.asHover.setGUI(gui);
     }
 
     @Override
@@ -332,7 +352,11 @@ public class TextArea extends Widget {
         int prefWidth = -1;
         int prefHeight = -1;
         
-        if(getMaxWidth() > 0) {
+        if(model == null) {
+            prefWidth = 0;
+            prefHeight = 0;
+            
+        } else if(getMaxWidth() > 0) {
             final int borderHorizontal = getBorderHorizontal();
             final int maxWidth = Math.max(0, getMaxWidth() - borderHorizontal);
             final int minWidth = Math.max(0, getMinWidth() - borderHorizontal);
@@ -341,13 +365,18 @@ public class TextArea extends Widget {
                 //System.out.println("Doing preferred size computation");
                 
                 LClip tmpRoot = new LClip(null);
-                tmpRoot.width = maxWidth;
-                Box box = new Box(tmpRoot, 0, 0, 0);
-                layoutElements(box, model);
-                box.finish();
-                
-                prefWidth = Math.max(0, maxWidth - box.minRemainingWidth);
-                prefHeight = box.curY;
+                startLayout();
+                try {
+                    tmpRoot.width = maxWidth;
+                    Box box = new Box(tmpRoot, 0, 0, 0, false);
+                    layoutElements(box, model);
+                    box.finish();
+
+                    prefWidth = Math.max(0, maxWidth - box.minRemainingWidth);
+                    prefHeight = box.curY;
+                } finally {
+                    endLayout();
+                }
             }
         }
         preferredInnerSize = new Dimension(prefWidth, prefHeight);
@@ -411,17 +440,14 @@ public class TextArea extends Widget {
         // only recompute the layout when it has changed
         if(layoutRoot.width != targetWidth || forceRelayout) {
             layoutRoot.width = targetWidth;
-            this.inLayoutCode = true;
-            this.forceRelayout = false;
-
-            if(styleClassResolver != null) {
-                styleClassResolver.startLayout();
-            }
+            inLayoutCode = true;
+            forceRelayout = false;
+            int requiredHeight;
             
-            clearLayout();
-            Box box = new Box(layoutRoot, 0, 0, 0);
-
+            startLayout();
             try {
+                clearLayout();
+                Box box = new Box(layoutRoot, 0, 0, 0, true);
                 if(model != null) {
                     layoutElements(box, model);
 
@@ -432,19 +458,17 @@ public class TextArea extends Widget {
                     layoutRoot.collectBGImages(0, 0, allBGImages);
                 }
                 updateMouseHover();
+                requiredHeight = box.curY;
             } finally {
                 inLayoutCode = false;
-            }
-
-            if(styleClassResolver != null) {
-                styleClassResolver.layoutFinished();
+                endLayout();
             }
 
             //System.out.println("layoutRoot.height="+layoutRoot.height+"  box.curY="+box.curY+"  remaining="+box.minRemainingWidth);
             
-            if(layoutRoot.height != box.curY) {
-                layoutRoot.height = box.curY;
-                if(getInnerHeight() != box.curY) {
+            if(layoutRoot.height != requiredHeight) {
+                layoutRoot.height = requiredHeight;
+                if(getInnerHeight() != requiredHeight) {
                     // call outside of inLayoutCode range
                     invalidateLayout();
                 }
@@ -455,16 +479,16 @@ public class TextArea extends Widget {
     @Override
     protected void paintWidget(GUI gui) {
         final ArrayList<LImage> bi = allBGImages;
-        final int innerX = getInnerX();
-        final int innerY = getInnerY();
-        final AnimationState as = elementsAnimationState;
-        final Renderer renderer = gui.getRenderer();
+        final RenderInfo ri = renderInfo;
+        ri.offsetX = getInnerX();
+        ri.offsetY = getInnerY();
+        ri.renderer = gui.getRenderer();
 
         for(int i=0,n=bi.size() ; i<n ; i++) {
-            bi.get(i).draw(innerX, innerY, as, renderer);
+            bi.get(i).draw(ri);
         }
 
-        layoutRoot.draw(innerX, innerY, as, renderer);
+        layoutRoot.draw(ri);
     }
 
     @Override
@@ -541,6 +565,20 @@ public class TextArea extends Widget {
                 return true;
             }
             
+            if(curLElementUnderMouse != null && (
+                    eventType == Event.Type.MOUSE_CLICKED ||
+                    eventType == Event.Type.MOUSE_BTNDOWN ||
+                    eventType == Event.Type.MOUSE_BTNUP)) {
+                TextAreaModel.Element e = curLElementUnderMouse.element;
+                if(callbacks != null) {
+                    for(Callback l : callbacks) {
+                        if(l instanceof Callback2) {
+                            ((Callback2)l).handleMouseButton(evt, e);
+                        }
+                    }
+                }
+            }
+            
             if(eventType == Event.Type.MOUSE_CLICKED) {
                 if(curLElementUnderMouse != null && curLElementUnderMouse.href != null) {
                     String href = curLElementUnderMouse.href;
@@ -583,7 +621,8 @@ public class TextArea extends Widget {
         if(curLElementUnderMouse != le) {
             curLElementUnderMouse = le;
             layoutRoot.setHover(le);
-            hoverUpdateTime = getTime();
+            renderInfo.asNormal.resetAnimationTime(STATE_HOVER);
+            renderInfo.asHover.resetAnimationTime(STATE_HOVER);
             updateTooltip();
         }
         
@@ -594,16 +633,6 @@ public class TextArea extends Widget {
         }
         
         getAnimationState().setAnimationState(STATE_HOVER, lastMouseInside);
-    }
-
-    int getHoverAnimationTime() {
-        long time = getTime();
-        return (int)(time - hoverUpdateTime) & Integer.MAX_VALUE;
-    }
-    
-    long getTime() {
-        GUI gui = getGUI();
-        return (gui != null) ? gui.getCurrentTime() : 0;
     }
     
     void forceRelayout() {
@@ -616,6 +645,24 @@ public class TextArea extends Widget {
         layoutRoot.destroy();
         allBGImages.clear();
         super.removeAllChildren();
+    }
+    
+    private void startLayout() {
+        if(styleClassResolver != null) {
+            styleClassResolver.startLayout();
+        }
+        
+        GUI gui = getGUI();
+        fontMapper = (gui != null) ? gui.getRenderer().getFontMapper() : null;
+        fontMapperCache = null;
+    }
+    
+    private void endLayout() {
+        if(styleClassResolver != null) {
+            styleClassResolver.layoutFinished();
+        }
+        fontMapper = null;
+        fontMapperCache = null;
     }
 
     private void layoutElements(Box box, Iterable<TextAreaModel.Element> elements) {
@@ -781,6 +828,8 @@ public class TextArea extends Widget {
             box.nextLine(false);
         }
     }
+    
+    private static final int DEFAULT_FONT_SIZE = 14;
 
     int convertToPX(Style style, StyleAttribute<Value> attribute, int full, int auto) {
         style = style.resolve(attribute, styleClassResolver);
@@ -788,6 +837,12 @@ public class TextArea extends Widget {
         
         Font font = null;
         if(valueUnit.unit.isFontBased()) {
+            if(attribute == StyleAttribute.FONT_SIZE) {
+                style = style.getParent();
+                if(style == null) {
+                    return DEFAULT_FONT_SIZE;
+                }
+            }
             font = selectFont(style);
             if(font == null) {
                 return 0;
@@ -804,6 +859,9 @@ public class TextArea extends Widget {
                 break;
             case PERCENT:
                 value *= full * 0.01f;
+                break;
+            case PT:
+                value *= 1.33f; // 96 DPI
                 break;
             case AUTO:
                 return auto;
@@ -822,14 +880,130 @@ public class TextArea extends Widget {
     }
 
     private Font selectFont(Style style) {
-        String fontName = style.get(StyleAttribute.FONT_NAME, styleClassResolver);
-        if(fontName != null && fonts != null) {
-            Font font = fonts.getFont(fontName);
-            if(font != null) {
-                return font;
+        StringList fontFamilies = style.get(StyleAttribute.FONT_FAMILIES, styleClassResolver);
+        if(fontFamilies != null) {
+            if(fontMapper != null) {
+                Font font = selectFontMapper(style, fontMapper, fontFamilies);
+                if(font != null) {
+                    return font;
+                }
+            }
+
+            if(fonts != null) {
+                do {
+                    Font font = fonts.getFont(fontFamilies.getValue());
+                    if(font != null) {
+                        return font;
+                    }
+                } while((fontFamilies=fontFamilies.getNext()) != null);
             }
         }
         return defaultFont;
+    }
+    
+    private static final StateSelect HOVER_STATESELECT =
+            new StateSelect(new StateExpression.Check(STATE_HOVER));
+    
+    private static final int FONT_MAPPER_CACHE_SIZE = 16;
+    
+    private static final class FontMapperCacheEntry {
+        final int fontSize;
+        final int fontStyle;
+        final StringList fontFamilies;
+        final TextDecoration tdNormal;
+        final TextDecoration tdHover;
+        final int hashCode;
+        final Font font;
+        FontMapperCacheEntry next;
+
+        FontMapperCacheEntry(int fontSize, int fontStyle, StringList fontFamilies, TextDecoration tdNormal, TextDecoration tdHover, int hashCode, Font font) {
+            this.fontSize = fontSize;
+            this.fontStyle = fontStyle;
+            this.fontFamilies = fontFamilies;
+            this.tdNormal = tdNormal;
+            this.tdHover = tdHover;
+            this.hashCode = hashCode;
+            this.font = font;
+        }
+    }
+    
+    private Font selectFontMapper(Style style, FontMapper fontMapper, StringList fontFamilies) {
+        int fontSize = convertToPX(style, StyleAttribute.FONT_SIZE, DEFAULT_FONT_SIZE, DEFAULT_FONT_SIZE);
+        int fontStyle = 0;
+        if(style.get(StyleAttribute.FONT_WEIGHT, styleClassResolver) >= 550) {
+            fontStyle |= FontMapper.STYLE_BOLD;
+        }
+        if(style.get(StyleAttribute.FONT_ITALIC, styleClassResolver)) {
+            fontStyle |= FontMapper.STYLE_ITALIC;
+        }
+        
+        TextDecoration textDecoration = style.get(StyleAttribute.TEXT_DECORATION, styleClassResolver);
+        TextDecoration textDecorationHover = style.get(StyleAttribute.TEXT_DECORATION_HOVER, styleClassResolver);
+        
+        int hashCode = fontSize;
+        hashCode = hashCode * 67 + fontStyle;
+        hashCode = hashCode * 67 + fontFamilies.hashCode();
+        hashCode = hashCode * 67 + textDecoration.hashCode();
+        hashCode = hashCode * 67 + ((textDecorationHover != null) ? textDecorationHover.hashCode() : 0);
+        
+        int cacheIdx = hashCode & (FONT_MAPPER_CACHE_SIZE-1);
+        
+        if(fontMapperCache != null) {
+            for(FontMapperCacheEntry ce=fontMapperCache[cacheIdx] ; ce!=null ; ce=ce.next) {
+                if(ce.hashCode == hashCode &&
+                        ce.fontSize == fontSize &&
+                        ce.fontStyle == fontStyle &&
+                        ce.tdNormal == textDecoration &&
+                        ce.tdHover == textDecorationHover &&
+                        ce.fontFamilies.equals(fontFamilies)) {
+                    return ce.font;
+                }
+            }
+        } else {
+            fontMapperCache = new FontMapperCacheEntry[FONT_MAPPER_CACHE_SIZE];
+        }
+        
+        FontParameter fpNormal = createFontParameter(textDecoration);
+        
+        StateSelect select;
+        FontParameter[] params;
+        
+        if(textDecorationHover != null) {
+            FontParameter fpHover = createFontParameter(textDecorationHover);
+
+            select = HOVER_STATESELECT;
+            params = new FontParameter[] { fpHover, fpNormal };
+        } else {
+            select = StateSelect.EMPTY;
+            params = new FontParameter[] { fpNormal };
+        }
+        
+        Font font = fontMapper.getFont(fontFamilies, fontSize, fontStyle, select, params);
+        
+        FontMapperCacheEntry ce = new FontMapperCacheEntry(fontSize, fontStyle,
+                fontFamilies, textDecoration, textDecorationHover, hashCode, font);
+        ce.next = fontMapperCache[cacheIdx];
+        fontMapperCache[cacheIdx] = ce;
+        
+        return font;
+    }
+    
+    private static FontParameter createFontParameter(TextDecoration deco) {
+        FontParameter fp = new FontParameter();
+        fp.put(FontParameter.UNDERLINE, deco == TextDecoration.UNDERLINE);
+        fp.put(FontParameter.LINETHROUGH, deco == TextDecoration.LINE_THROUGH);
+        return fp;
+    }
+    
+    private FontData createFontData(Style style) {
+        Font font = selectFont(style);
+        if(font == null) {
+            return null;
+        }
+        
+        return new FontData(font,
+                style.get(StyleAttribute.COLOR, styleClassResolver),
+                style.get(StyleAttribute.COLOR_HOVER, styleClassResolver));
     }
 
     private Image selectImage(Style style, StyleAttribute<String> element) {
@@ -881,15 +1055,22 @@ public class TextArea extends Widget {
     private void layoutTextElement(Box box, TextAreaModel.TextElement te) {
         final String text = te.getText();
         final Style style = te.getStyle();
-        final Font font = selectFont(style);
+        final FontData fontData = createFontData(style);
         final boolean pre = style.get(StyleAttribute.PREFORMATTED, styleClassResolver);
-        final Color color = style.get(StyleAttribute.COLOR, styleClassResolver);
 
-        if(font == null) {
+        if(fontData == null) {
             return;
         }
 
-        box.setupTextParams(style, font, false);
+        final boolean inheritHover;
+        Boolean inheritHoverStyle = style.resolve(StyleAttribute.INHERIT_HOVER, styleClassResolver).getRaw(StyleAttribute.INHERIT_HOVER);
+        if(inheritHoverStyle != null) {
+            inheritHover = inheritHoverStyle.booleanValue();
+        } else {
+            inheritHover = (box.style != null) && (box.style == style.getParent());
+        }
+        
+        box.setupTextParams(style, fontData.font, false);
 
         if(pre && !box.wasPreformatted) {
             box.nextLine(false);
@@ -899,9 +1080,9 @@ public class TextArea extends Widget {
         while(idx < text.length()) {
             int end = TextUtil.indexOf(text, '\n', idx);
             if(pre) {
-                layoutTextPre(box, te, font, color, text, idx, end);
+                layoutTextPre(box, te, fontData, text, idx, end, inheritHover);
             } else {
-                layoutText(box, te, font, color, text, idx, end);
+                layoutText(box, te, fontData, text, idx, end, inheritHover);
             }
             
             if(end < text.length() && text.charAt(end) == '\n') {
@@ -914,8 +1095,8 @@ public class TextArea extends Widget {
         box.wasPreformatted = pre;
     }
 
-    private void layoutText(Box box, TextAreaModel.TextElement te, Font font,
-            Color color, String text, int textStart, int textEnd) {
+    private void layoutText(Box box, TextAreaModel.TextElement te, FontData fontData,
+            String text, int textStart, int textEnd, boolean inheritHover) {
         int idx = textStart;
         // trim start
         while(textStart < textEnd && isSkip(text.charAt(textStart))) {
@@ -928,6 +1109,8 @@ public class TextArea extends Widget {
             textEnd--;
         }
 
+        Font font = fontData.font;
+        
         // check if we skipped white spaces and the previous element in this
         // row was not a text cell
         if(textStart > idx && box.prevOnLineEndsNotWithSpace()) {
@@ -1003,7 +1186,7 @@ public class TextArea extends Widget {
             }
 
             if(idx < end) {
-                LText lt = new LText(te, font, color, text, idx, end);
+                LText lt = new LText(te, fontData, text, idx, end, box.doCacheText);
                 if(advancePastFloaters) {
                     box.advancePastFloaters(lt.width, box.marginLeft, box.marginRight);
                 }
@@ -1019,6 +1202,7 @@ public class TextArea extends Widget {
                 lt.x = box.getXAndAdvance(width);
                 lt.marginTop = (short)box.marginTop;
                 lt.href = box.href;
+                lt.inheritHover = inheritHover;
                 box.layout.add(lt);
             }
 
@@ -1034,14 +1218,15 @@ public class TextArea extends Widget {
         }
     }
 
-    private void layoutTextPre(Box box, TextAreaModel.TextElement te, Font font,
-            Color color, String text, int textStart, int textEnd) {
+    private void layoutTextPre(Box box, TextAreaModel.TextElement te, FontData fontData,
+            String text, int textStart, int textEnd, boolean inheritHover) {
+        Font font = fontData.font;
         int idx = textStart;
         for(;;) {
             while(idx < textEnd) {
                 if(text.charAt(idx) == '\t') {
                     idx++;
-                    int tabX = box.computeNextTabStop(font);
+                    int tabX = box.computeNextTabStop(te.getStyle(), font);
                     if(tabX < box.lineWidth) {
                         box.curX = tabX;
                     } else if(!box.isAtStartOfLine()) {
@@ -1063,9 +1248,10 @@ public class TextArea extends Widget {
 
                     end = idx + Math.max(1, count);
 
-                    LText lt = new LText(te, font, color, text, idx, end);
+                    LText lt = new LText(te, fontData, text, idx, end, box.doCacheText);
                     lt.x = box.getXAndAdvance(lt.width);
                     lt.marginTop = (short)box.marginTop;
+                    lt.inheritHover = inheritHover;
                     box.layout.add(lt);
                 }
 
@@ -1145,13 +1331,11 @@ public class TextArea extends Widget {
 
     private void layoutOrderedListElement(Box box, TextAreaModel.OrderedListElement ole) {
         Style style = ole.getStyle();
-        Font font = selectFont(style);
+        FontData fontData = createFontData(style);
 
-        if(font == null) {
+        if(fontData == null) {
             return;
         }
-        
-        Color color = style.get(StyleAttribute.COLOR, styleClassResolver);
         
         doMarginTop(box, style);
         LElement anchor = box.addAnchor(ole);
@@ -1164,7 +1348,7 @@ public class TextArea extends Widget {
         int maxLabelWidth = convertToPX0(style, StyleAttribute.PADDING_LEFT, box.boxWidth);
         for(int i=0 ; i<count ; i++) {
             labels[i] = type.format(start + i).concat(". ");
-            int width = font.computeTextWidth(labels[i]);
+            int width = fontData.font.computeTextWidth(labels[i]);
             maxLabelWidth = Math.max(maxLabelWidth, width);
         }
 
@@ -1174,7 +1358,7 @@ public class TextArea extends Widget {
             Style liStyle = li.getStyle();
             doMarginTop(box, liStyle);
             
-            LText lt = new LText(ole, font, color, label, 0, label.length());
+            LText lt = new LText(ole, fontData, label, 0, label.length(), box.doCacheText);
             int labelWidth = lt.width;
             int labelHeight = lt.height;
 
@@ -1198,14 +1382,15 @@ public class TextArea extends Widget {
         doMarginBottom(box, style);
     }
 
-    private Box layoutBox(LClip clip, int continerWidth, int paddingLeft, int paddingRight, TextAreaModel.ContainerElement ce, String href) {
+    private Box layoutBox(LClip clip, int continerWidth, int paddingLeft, int paddingRight, TextAreaModel.ContainerElement ce, String href, boolean doCacheText) {
         Style style = ce.getStyle();
         int paddingTop = convertToPX0(style, StyleAttribute.PADDING_TOP, continerWidth);
         int paddingBottom = convertToPX0(style, StyleAttribute.PADDING_BOTTOM, continerWidth);
         int marginBottom = convertToPX0(style, StyleAttribute.MARGIN_BOTTOM, continerWidth);
 
-        Box box = new Box(clip, paddingLeft, paddingRight, paddingTop);
+        Box box = new Box(clip, paddingLeft, paddingRight, paddingTop, doCacheText);
         box.href = href;
+        box.style = style;
         layoutElements(box, ce);
         box.finish();
         
@@ -1262,7 +1447,7 @@ public class TextArea extends Widget {
                 LClip dummy = new LClip(null);
                 dummy.width = Math.max(0, box.lineWidth - paddingLeft - paddingRight);
 
-                Box dummyBox = layoutBox(dummy, box.boxWidth, paddingLeft, paddingRight, be, null);
+                Box dummyBox = layoutBox(dummy, box.boxWidth, paddingLeft, paddingRight, be, null, false);
                 dummyBox.nextLine(false);
                 
                 bgWidth = Math.max(0, dummy.width - dummyBox.minRemainingWidth);
@@ -1294,7 +1479,7 @@ public class TextArea extends Widget {
         clip.href = box.href;
         box.layout.add(clip);
 
-        Box clipBox = layoutBox(clip, box.boxWidth, paddingLeft, paddingRight, be, box.href);
+        Box clipBox = layoutBox(clip, box.boxWidth, paddingLeft, paddingRight, be, box.href, box.doCacheText);
 
         // sync main box with layout
         box.lineStartIdx = box.layout.size();
@@ -1348,7 +1533,7 @@ public class TextArea extends Widget {
 
                         LClip dummy = new LClip(null);
                         dummy.width = maxTableWidth;
-                        Box dummyBox = layoutBox(dummy, maxTableWidth, paddingLeft, paddingRight, cell, null);
+                        Box dummyBox = layoutBox(dummy, maxTableWidth, paddingLeft, paddingRight, cell, null, false);
                         dummyBox.finish();
 
                         cellWidth = maxTableWidth - dummyBox.minRemainingWidth;
@@ -1552,7 +1737,7 @@ public class TextArea extends Widget {
                     clip.marginTop = (short)convertToPX0(cellStyle, StyleAttribute.MARGIN_TOP, tableWidth);
                     box.layout.add(clip);
 
-                    layoutBox(clip, tableWidth, paddingLeft, paddingRight, cell, null);
+                    layoutBox(clip, tableWidth, paddingLeft, paddingRight, cell, null, box.doCacheText);
 
                     col += Math.max(0, cell.getColspan()-1);
                 }
@@ -1601,19 +1786,30 @@ public class TextArea extends Widget {
         Style style = element.getStyle();
         Image image = selectImage(style, StyleAttribute.BACKGROUND_IMAGE);
         if(image == null) {
-            Color color = style.get(StyleAttribute.BACKGROUND_COLOR, styleClassResolver);
-            if(color.getA() != 0) {
-                Image white = selectImage("white");
-                if(white != null) {
-                    image = white.createTintedVersion(color);
-                }
-            }
+            image = createBackgroundColor(style);
         }
         if(image != null) {
             LImage bgImage = new LImage(element, image);
             bgImage.y = box.curY;
             box.clip.bgImages.add(bgImage);
             return bgImage;
+        }
+        return null;
+    }
+    
+    private Image createBackgroundColor(Style style) {
+        Color color = style.get(StyleAttribute.BACKGROUND_COLOR, styleClassResolver);
+        if(color.getAlpha() != 0) {
+            Image white = selectImage("white");
+            if(white != null) {
+                Image image = white.createTintedVersion(color);
+                Color colorHover = style.get(StyleAttribute.BACKGROUND_COLOR_HOVER, styleClassResolver);
+                if(colorHover != null) {
+                    return new StateSelectImage(HOVER_STATESELECT, null,
+                            white.createTintedVersion(colorHover), image);
+                }
+                return image;
+            }
         }
         return null;
     }
@@ -1627,7 +1823,8 @@ public class TextArea extends Widget {
     }
 
     static boolean isBreak(char ch) {
-        return Character.isWhitespace(ch) || isPunctuation(ch);
+        return Character.isWhitespace(ch) || isPunctuation(ch) ||
+                (ch == 0x3001) || (ch == 0x3002);
     }
 
     class Box {
@@ -1640,6 +1837,7 @@ public class TextArea extends Widget {
         final int boxWidth;
         final int boxMarginOffsetLeft;
         final int boxMarginOffsetRight;
+        final boolean doCacheText;
         int curY;
         int curX;
         int lineStartIdx;
@@ -1661,17 +1859,19 @@ public class TextArea extends Widget {
         boolean wasPreformatted;
         TextAreaModel.HAlignment textAlignment;
         String href;
+        Style style;
 
-        Box(LClip clip, int paddingLeft, int paddingRight, int paddingTop) {
+        Box(LClip clip, int paddingLeft, int paddingRight, int paddingTop, boolean doCacheText) {
             this.clip = clip;
             this.layout = clip.layout;
             this.boxLeft = paddingLeft;
             this.boxWidth = Math.max(0, clip.width - paddingLeft - paddingRight);
             this.boxMarginOffsetLeft = paddingLeft;
             this.boxMarginOffsetRight = paddingRight;
-            this.curX = this.boxLeft;
+            this.doCacheText = doCacheText;
+            this.curX = paddingLeft;
             this.curY = paddingTop;
-            this.lineStartX = boxLeft;
+            this.lineStartX = paddingLeft;
             this.lineWidth = boxWidth;
             this.minRemainingWidth = boxWidth;
             this.textAlignment = TextAreaModel.HAlignment.LEFT;
@@ -1922,10 +2122,16 @@ public class TextArea extends Widget {
             lineInfo.getChars(0, lineInfoLength, clip.lineInfo, 0);
         }
 
-        int computeNextTabStop(Font font) {
+        int computeNextTabStop(Style style, Font font) {
+            int em = font.getEM();
+            int tabSize = style.get(StyleAttribute.TAB_SIZE, styleClassResolver);
+            if(tabSize <= 0 || em <= 0) {
+                // replace with single space when tabs are disabled
+                return curX + font.getSpaceWidth();
+            }
+            int tabSizePX = Math.min(tabSize, Short.MAX_VALUE / em) * em;
             int x = curX - lineStartX + font.getSpaceWidth();
-            int tabSize = 8 * font.getEM();
-            return curX + tabSize - (x % tabSize);
+            return curX + tabSizePX - (x % tabSizePX);
         }
 
         private void removeObjFromList(ArrayList<LElement> list) {
@@ -1990,6 +2196,25 @@ public class TextArea extends Widget {
         }
     }
 
+    static class RenderInfo {
+        int offsetX;
+        int offsetY;
+        Renderer renderer;
+        final AnimationState asNormal;
+        final AnimationState asHover;
+
+        RenderInfo(AnimationState parent) {
+            asNormal = new AnimationState(parent);
+            asNormal.setAnimationState(STATE_HOVER, false);
+            asHover = new AnimationState(parent);
+            asHover.setAnimationState(STATE_HOVER, true);
+        }
+        
+        AnimationState getAnimationState(boolean isHover) {
+            return isHover ? asHover : asNormal;
+        }
+    }
+
     static class LElement {
         final TextAreaModel.Element element;
         int x;
@@ -2002,6 +2227,7 @@ public class TextArea extends Widget {
         short marginBottom;
         String href;
         boolean isHover;
+        boolean inheritHover;
 
         LElement(TextAreaModel.Element element) {
             this.element = element;
@@ -2009,7 +2235,7 @@ public class TextArea extends Widget {
 
         void adjustWidget(int offX, int offY) {}
         void collectBGImages(int offX, int offY, ArrayList<LImage> allBGImages) {}
-        void draw(int offX, int offY, AnimationState as, Renderer renderer) {}
+        void draw(RenderInfo ri) {}
         void destroy() {}
 
         boolean isInside(int x, int y) {
@@ -2034,23 +2260,45 @@ public class TextArea extends Widget {
             return y + height + marginBottom;
         }
     }
-
-    static class LText extends LElement {
+    
+    static class FontData {
         final Font font;
         final Color color;
+        final Color colorHover;
+
+        FontData(Font font, Color color, Color colorHover) {
+            if(colorHover == null) {
+                colorHover = color;
+            }
+            this.font = font;
+            this.color = maskWhite(color);
+            this.colorHover = maskWhite(colorHover);
+        }
+        
+        public Color getColor(boolean isHover) {
+            return isHover ? colorHover : color;
+        }
+        
+        private static Color maskWhite(Color c) {
+            return Color.WHITE.equals(c) ? null : c;
+        }
+    }
+
+    static class LText extends LElement {
+        final FontData fontData;
         final String text;
         final int start;
         final int end;
         FontCache cache;
 
-        LText(TextAreaModel.Element element, Font font, Color color, String text, int start, int end) {
+        LText(TextAreaModel.Element element, FontData fontData, String text, int start, int end, boolean doCache) {
             super(element);
-            this.font = font;
-            this.color = Color.WHITE.equals(color) ? null : color;
+            Font font = fontData.font;
+            this.fontData = fontData;
             this.text = text;
             this.start = start;
             this.end = end;
-            this.cache = font.cacheText(null, text, start, end);
+            this.cache = doCache ? font.cacheText(null, text, start, end) : null;
             this.height = font.getLineHeight();
 
             if(cache != null) {
@@ -2061,27 +2309,27 @@ public class TextArea extends Widget {
         }
 
         @Override
-        void draw(int offX, int offY, AnimationState as, Renderer renderer) {
-            as.setAnimationState(STATE_HOVER, isHover);
-            if(color != null) {
-                drawTextWithColor(offX, offY, as, renderer);
+        void draw(RenderInfo ri) {
+            Color c = fontData.getColor(isHover);
+            if(c != null) {
+                drawTextWithColor(ri, c);
             } else {
-                drawText(offX, offY, as);
+                drawText(ri);
             }
         }
         
-        private void drawTextWithColor(int offX, int offY, AnimationState as, Renderer renderer) {
-            Color c = color;
-            renderer.pushGlobalTintColor(c.getRedFloat(), c.getGreenFloat(), c.getBlueFloat(), c.getAlphaFloat());
-            drawText(offX, offY, as);
-            renderer.popGlobalTintColor();
+        private void drawTextWithColor(RenderInfo ri, Color c) {
+            ri.renderer.pushGlobalTintColor(c.getRedFloat(), c.getGreenFloat(), c.getBlueFloat(), c.getAlphaFloat());
+            drawText(ri);
+            ri.renderer.popGlobalTintColor();
         }
         
-        private void drawText(int offX, int offY, AnimationState as) {
+        private void drawText(RenderInfo ri) {
+            AnimationState as = ri.getAnimationState(isHover);
             if(cache != null) {
-                cache.draw(as, x+offX, y+offY);
+                cache.draw(as, x+ri.offsetX, y+ri.offsetY);
             } else {
-                font.drawText(as, x+offX, y+offY, text, start, end);
+                fontData.font.drawText(as, x+ri.offsetX, y+ri.offsetY, text, start, end);
             }
         }
 
@@ -2123,9 +2371,9 @@ public class TextArea extends Widget {
         }
         
         @Override
-        void draw(int offX, int offY, AnimationState as, Renderer renderer) {
-            as.setAnimationState(STATE_HOVER, hoverSrc.isHover);
-            img.draw(as, x+offX, y+offY, width, height);
+        void draw(RenderInfo ri) {
+            img.draw(ri.getAnimationState(hoverSrc.isHover),
+                    x+ri.offsetX, y+ri.offsetY, width, height);
         }
     }
 
@@ -2142,28 +2390,26 @@ public class TextArea extends Widget {
             this.anchors = new ArrayList<LElement>();
             this.lineInfo = EMPTY_CHAR_ARRAY;
         }
-
+        
         @Override
-        void draw(int offX, int offY, AnimationState as, Renderer renderer) {
-            offX += x;
-            offY += y;
-            renderer.clipEnter(offX, offY, width, height);
+        void draw(RenderInfo ri) {
+            ri.offsetX += x;
+            ri.offsetY += y;
+            ri.renderer.clipEnter(ri.offsetX, ri.offsetY, width, height);
             try {
-                if(!renderer.clipIsEmpty()) {
-                    drawNoClip(offX, offY, as, renderer);
+                if(!ri.renderer.clipIsEmpty()) {
+                    final ArrayList<LElement> ll = layout;
+                    for(int i=0,n=ll.size() ; i<n ; i++) {
+                        ll.get(i).draw(ri);
+                    }
                 }
             } finally {
-                renderer.clipLeave();
+                ri.renderer.clipLeave();
+                ri.offsetX -= x;
+                ri.offsetY -= y;
             }
         }
-
-        void drawNoClip(int offX, int offY, AnimationState as, Renderer renderer) {
-            final ArrayList<LElement> ll = layout;
-            for(int i=0,n=ll.size() ; i<n ; i++) {
-                ll.get(i).draw(offX, offY, as, renderer);
-            }
-        }
-
+        
         @Override
         void adjustWidget(int offX, int offY) {
             offX += x;
@@ -2269,10 +2515,16 @@ public class TextArea extends Widget {
             }
             if(childHover) {
                 isHover = true;
-                return true;
             } else {
-                return super.setHover(le);
+                super.setHover(le);
             }
+            for(int i=0,n=layout.size() ; i<n ; i++) {
+                LElement child = layout.get(i);
+                if(child.inheritHover) {
+                    child.isHover = isHover;
+                }
+            }
+            return isHover;
         }
         
         void moveContentY(int amount) {

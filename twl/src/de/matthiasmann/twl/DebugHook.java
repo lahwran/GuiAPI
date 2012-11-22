@@ -144,6 +144,6 @@ public class DebugHook {
      * @param themePath the requested theme name
      */
     public void usingFallbackTheme(String themePath) {
-        System.err.println("Selected fallback theme for missing theme \"" + themePath + "\"");
+        
     }
 }

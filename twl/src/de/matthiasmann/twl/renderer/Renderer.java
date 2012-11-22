@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  * 
  * All rights reserved.
  * 
@@ -31,10 +31,9 @@ package de.matthiasmann.twl.renderer;
 
 import de.matthiasmann.twl.Event;
 import de.matthiasmann.twl.Rect;
+import de.matthiasmann.twl.utils.StateSelect;
 import java.io.IOException;
 import java.net.URL;
-import java.util.Collection;
-import java.util.Map;
 
 /**
  * TWL Rendering interface
@@ -106,12 +105,15 @@ public interface Renderer {
      * Loads a font.
      * 
      * @param baseUrl the base URL that can be used to load font data
-     * @param parameter font parameter
-     * @param conditionalParameter conditional font paramters - evaluate in order based on AnimationState
+     * @param select the StateSelect object
+     * @param parameterList the font parameters - must be exactly 1 more then
+     *                      the number of expressions in the select object
      * @return a Font object
      * @throws java.io.IOException if the font could not be loaded
+     * @throws NullPointerException when one of the parameters is null
+     * @throws IllegalArgumentException when the number of font parameters doesn't match the number of state expressions
      */
-    public Font loadFont(URL baseUrl, Map<String, String> parameter, Collection<FontParameter> conditionalParameter) throws IOException;
+    public Font loadFont(URL baseUrl, StateSelect select, FontParameter ... parameterList) throws IOException;
     
     /**
      * Loads a texture. Textures are used to create images.
@@ -143,6 +145,15 @@ public interface Renderer {
     public OffscreenRenderer getOffscreenRenderer();
     
     /**
+     * Returns the font mapper object if one is available.
+     * 
+     * This is an optional operation.
+     *
+     * @return the font mapper or null if not supported.
+     */
+    public FontMapper getFontMapper();
+    
+    /**
      * Creates a dynamic image with undefined content.
      * 
      * This is an optional operation.
@@ -152,6 +163,8 @@ public interface Renderer {
      * @return a new dynamic image or null if the image could not be created
      */
     public DynamicImage createDynamicImage(int width, int height);
+    
+    public Image createGradient(Gradient gradient);
     
     /**
      * Enters a clip region.

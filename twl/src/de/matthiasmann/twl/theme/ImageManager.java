@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2011, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -31,6 +31,7 @@ package de.matthiasmann.twl.theme;
 
 import de.matthiasmann.twl.Border;
 import de.matthiasmann.twl.Color;
+import de.matthiasmann.twl.renderer.Gradient;
 import de.matthiasmann.twl.renderer.MouseCursor;
 import de.matthiasmann.twl.renderer.Image;
 import de.matthiasmann.twl.renderer.Renderer;
@@ -251,6 +252,8 @@ class ImageManager {
             return parseGrid(xmlp, params);
         } else if("animation".equals(tagName)) {
             return parseAnimation(xmlp, params);
+        } else if("gradient".equals(tagName)) {
+            return parseGradient(xmlp, params);
         } else {
             throw xmlp.error("Unexpected '"+tagName+"'");
         }
@@ -284,27 +287,69 @@ class ImageManager {
         ArrayList<Image> stateImages = new ArrayList<Image>();
         ArrayList<StateExpression> conditions = new ArrayList<StateExpression>();
         xmlp.nextTag();
-        while(!xmlp.isEndTag()) {
+        boolean last = false;
+        while(!last && !xmlp.isEndTag()) {
             xmlp.require(XmlPullParser.START_TAG, null, null);
             StateExpression cond = ParserUtil.parseCondition(xmlp);
             String tagName = xmlp.getName();
             Image image = parseImageNoCond(xmlp, tagName, new ImageParams());
-            stateImages.add(image);
             params.border = getBorder(image, params.border);
             xmlp.require(XmlPullParser.END_TAG, null, tagName);
             xmlp.nextTag();
-            if(cond != null) {
-                conditions.add(cond);
+            last = cond == null;
+            
+            if(image instanceof ImageAdjustments) {
+                ImageAdjustments ia = (ImageAdjustments)image;
+                if(ia.isSimple()) {
+                    cond = and(cond, ia.condition);
+                    image = ia.image;
+                }
+            }
+            
+            if(StateSelect.isUseOptimizer() && (image instanceof StateSelectImage)) {
+                inlineSelect((StateSelectImage)image, cond, stateImages, conditions);
             } else {
-                break;
+                stateImages.add(image);
+                if(cond != null) {
+                    conditions.add(cond);
+                }
             }
         }
         if(conditions.size() < 1) {
             throw xmlp.error("state select image needs atleast 1 condition");
         }
-        StateSelect select = new StateSelect(conditions.toArray(new StateExpression[conditions.size()]));
-        Image image = new StateSelectImage(stateImages.toArray(new Image[stateImages.size()]), select, params.border);
+        StateSelect select = new StateSelect(conditions);
+        Image image = new StateSelectImage(select, params.border, stateImages.toArray(new Image[stateImages.size()]));
         return image;
+    }
+
+    private static void inlineSelect(StateSelectImage src, StateExpression cond, ArrayList<Image> stateImages, ArrayList<StateExpression> conditions) {
+        int n = src.images.length;
+        int m = src.select.getNumExpressions();
+        for(int i=0 ; i<n ; i++) {
+            StateExpression imgCond = (i < m) ? src.select.getExpression(i) : null;
+            imgCond = and(imgCond, cond);
+            stateImages.add(src.images[i]);
+            if(imgCond != null) {
+                conditions.add(imgCond);
+            }
+        }
+        if(n == m && cond != null) {
+            // when the src StateSelectImage doesn't have a default entry
+            // (which is used when no condition matched) then add one with
+            // NONE as image (except when inlining as default entry)
+            stateImages.add(NONE);
+            conditions.add(cond);
+        }
+    }
+
+    private static StateExpression and(StateExpression imgCond, StateExpression cond) {
+        if(imgCond == null) {
+            imgCond = cond;
+        } else if(cond != null) {
+            imgCond = new StateExpression.Logic('+', imgCond, cond);
+        }
+        return imgCond;
     }
 
     private Image parseArea(XMLParser xmlp, ImageParams params) throws IOException, XmlPullParserException {
@@ -407,7 +452,7 @@ class ImageManager {
             try {
                 int[] result = new int[4];
                 for(int i=0,start=0 ; i<2 ; i++) {
-                    String part = splitStr.substring(start, comma).trim();
+                    String part = TextUtil.trim(splitStr, start, comma);
                     if(part.length() == 0) {
                         throw new NumberFormatException("empty string");
                     }
@@ -425,7 +470,7 @@ class ImageManager {
                         case 'T':
                         case 'l':
                         case 'L':
-                            part = part.substring(1).trim();
+                            part = TextUtil.trim(part, 1);
                             break;
                     }
                     int value = Integer.parseInt(part);
@@ -450,12 +495,18 @@ class ImageManager {
     }
 
     private void parseSubImages(XMLParser xmlp, Image[] textures) throws XmlPullParserException, IOException {
-        for(int i=0 ; i<textures.length ; i++) {
-            xmlp.require(XmlPullParser.START_TAG, null, null);
+        int idx = 0;
+        while(xmlp.isStartTag()) {
+            if(idx == textures.length) {
+                throw xmlp.error("Too many sub images");
+            }
             String tagName = xmlp.getName();
-            textures[i] = parseImage(xmlp, tagName);
+            textures[idx++] = parseImage(xmlp, tagName);
             xmlp.require(XmlPullParser.END_TAG, null, tagName);
             xmlp.nextTag();
+        }
+        if(idx != textures.length) {
+            throw xmlp.error("Not enough sub images");
         }
     }
 
@@ -602,6 +653,31 @@ class ImageManager {
                     (params.tintColor == null) ? Color.WHITE : params.tintColor, frozenTime);
             params.tintColor = null;
             return image;
+        } catch(IllegalArgumentException ex) {
+            throw xmlp.error("Unable to parse", ex);
+        }
+    }
+    
+    private Image parseGradient(XMLParser xmlp, ImageParams params) throws XmlPullParserException, IOException {
+        try {
+            Gradient.Type type = xmlp.parseEnumFromAttribute("type", Gradient.Type.class);
+            Gradient.Wrap wrap = xmlp.parseEnumFromAttribute("wrap", Gradient.Wrap.class, Gradient.Wrap.SCALE);
+
+            Gradient gradient = new Gradient(type);
+            gradient.setWrap(wrap);
+
+            xmlp.nextTag();
+            while(xmlp.isStartTag()) {
+                xmlp.require(XmlPullParser.START_TAG, null, "stop");
+                float pos = xmlp.parseFloatFromAttribute("pos");
+                Color color = ParserUtil.parseColor(xmlp, xmlp.getAttributeNotNull("color"), constants);
+                gradient.addStop(pos, color);
+                xmlp.nextTag();
+                xmlp.require(XmlPullParser.END_TAG, null, "stop");
+                xmlp.nextTag();
+            }
+            
+            return renderer.createGradient(gradient);
         } catch(IllegalArgumentException ex) {
             throw xmlp.error("Unable to parse", ex);
         }

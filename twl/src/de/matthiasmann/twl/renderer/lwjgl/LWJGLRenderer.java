@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2011, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -37,21 +37,23 @@ import de.matthiasmann.twl.renderer.AnimationState.StateKey;
 import de.matthiasmann.twl.renderer.CacheContext;
 import de.matthiasmann.twl.renderer.DynamicImage;
 import de.matthiasmann.twl.renderer.FontParameter;
+import de.matthiasmann.twl.renderer.Gradient;
+import de.matthiasmann.twl.renderer.Image;
 import de.matthiasmann.twl.renderer.MouseCursor;
 import de.matthiasmann.twl.renderer.Font;
+import de.matthiasmann.twl.renderer.FontMapper;
 import de.matthiasmann.twl.renderer.LineRenderer;
 import de.matthiasmann.twl.renderer.OffscreenRenderer;
 import de.matthiasmann.twl.renderer.Renderer;
 import de.matthiasmann.twl.renderer.Texture;
 import de.matthiasmann.twl.utils.ClipStack;
+import de.matthiasmann.twl.utils.StateSelect;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Locale;
-import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.lwjgl.BufferUtils;
@@ -79,6 +81,10 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
     public static final StateKey STATE_MIDDLE_MOUSE_BUTTON = StateKey.get("middleMouseButton");
     public static final StateKey STATE_RIGHT_MOUSE_BUTTON = StateKey.get("rightMouseButton");
 
+    public static final FontParameter.Parameter<Integer> FONTPARAM_OFFSET_X = FontParameter.newParameter("offsetX", 0);
+    public static final FontParameter.Parameter<Integer> FONTPARAM_OFFSET_Y = FontParameter.newParameter("offsetY", 0);
+    public static final FontParameter.Parameter<Integer> FONTPARAM_UNDERLINE_OFFSET = FontParameter.newParameter("underlineOffset", 0);  
+    
     private final IntBuffer ib16;
     final int maxTextureSize;
 
@@ -95,13 +101,14 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
     private int mouseX;
     private int mouseY;
     private LWJGLCacheContext cacheContext;
+    private FontMapper fontMapper;
 
     final SWCursorAnimState swCursorAnimState;
     final ArrayList<TextureArea> textureAreas;
     final ArrayList<TextureAreaRotated> rotatedTextureAreas;
     final ArrayList<LWJGLDynamicImage> dynamicImages;
-    TintStack tintStack;
     
+    protected TintStack tintStack;
     protected final ClipStack clipStack;
     protected final Rect clipRectTemp;
     
@@ -338,34 +345,21 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
         return viewportBottom - height;
     }
 
-    /**
-     * Loads a font (either BMFont XML or ASCII format).
-     * <p>If the parameter @code "filename"} is specified then it will be resolved
-     * against the specified URL, otherwise the URL is used directly.</p>
-     * <p>The parameter {@code "color"} is required and must be in a format
-     * parsable by {@link Color#parserColor(java.lang.String)}</p>
-     * @param url the url for the font file 
-     * @param parameter a list of parameters for loading this font
-     * @param conditionalParameter condition parameters for use with {@link AnimationState}
-     * @return a Font object
-     * @throws IOException if the font could not be loaded
-     */
-    public Font loadFont(URL url, Map<String, String> parameter, Collection<FontParameter> conditionalParameter) throws IOException {
+    public Font loadFont(URL url, StateSelect select, FontParameter ... parameterList) throws IOException {
         if(url == null) {
             throw new NullPointerException("url");
         }
-        if(parameter == null) {
-            throw new NullPointerException("parameter");
+        if(select == null) {
+            throw new NullPointerException("select");
         }
-        if(conditionalParameter == null) {
-            throw new NullPointerException("conditionalParameter");
+        if(parameterList == null) {
+            throw new NullPointerException("parameterList");
         }
-        String fileName = parameter.get("filename");
-        if(fileName != null) {
-            url = new URL(url, fileName);
+        if(select.getNumExpressions() + 1 != parameterList.length) {
+            throw new IllegalArgumentException("select.getNumExpressions() + 1 != parameterList.length");
         }
         BitmapFont bmFont = activeCacheContext().loadBitmapFont(url);
-        return new LWJGLFont(this, bmFont, parameter, conditionalParameter);
+        return new LWJGLFont(this, bmFont, select, parameterList);
     }
 
     public Texture loadTexture(URL url, String formatStr, String filterStr) throws IOException {
@@ -396,6 +390,21 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
         return null;
     }
 
+    public FontMapper getFontMapper() {
+        return fontMapper;
+    }
+    
+    /**
+     * Installs a font mapper. It is the responsibility of the font mapper to
+     * manage the OpenGL state correctly so that normal rendering by LWJGLRenderer
+     * is not disturbed.
+     * 
+     * @param fontMapper the font mapper object - can be null.
+     */
+    public void setFontMapper(FontMapper fontMapper) {
+        this.fontMapper = fontMapper;
+    }
+    
     public DynamicImage createDynamicImage(int width, int height) {
         if(width <= 0) {
             throw new IllegalArgumentException("width");
@@ -404,42 +413,52 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
             throw new IllegalArgumentException("height");
         }
         if(width > maxTextureSize || height > maxTextureSize) {
+            getLogger().log(Level.WARNING, "requested size {0} x {1} exceeds maximum texture size {3}",
+                    new Object[]{ width, height, maxTextureSize });
             return null;
         }
 
+        int texWidth = width;
+        int texHeight = height;
+        
         ContextCapabilities caps = GLContext.getCapabilities();
         boolean useTextureRectangle = caps.GL_EXT_texture_rectangle || caps.GL_ARB_texture_rectangle;
 
         if(!useTextureRectangle && !caps.GL_ARB_texture_non_power_of_two) {
-            if((width & (width-1)) != 0 || (height & (height-1)) != 0) {
-                return null;
-            }
+            texWidth = nextPowerOf2(width);
+            texHeight = nextPowerOf2(height);
         }
 
         // ARB and EXT versions use the same enum !
         int proxyTarget = useTextureRectangle ?
             EXTTextureRectangle.GL_PROXY_TEXTURE_RECTANGLE_EXT : GL11.GL_PROXY_TEXTURE_2D;
 
-        GL11.glTexImage2D(proxyTarget, 0, GL11.GL_RGBA, width, height, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, (ByteBuffer)null);
+        GL11.glTexImage2D(proxyTarget, 0, GL11.GL_RGBA, texWidth, texHeight, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, (ByteBuffer)null);
         ib16.clear();
         GL11.glGetTexLevelParameter(proxyTarget, 0, GL11.GL_TEXTURE_WIDTH, ib16);
-        if(ib16.get(0) != width) {
+        if(ib16.get(0) != texWidth) {
+            getLogger().log(Level.WARNING, "requested size {0} x {1} failed proxy texture test",
+                    new Object[]{ texWidth, texHeight });
             return null;
         }
 
         // ARB and EXT versions use the same enum !
         int target = useTextureRectangle ?
             EXTTextureRectangle.GL_TEXTURE_RECTANGLE_EXT : GL11.GL_TEXTURE_2D;
-        int id = glGenTexture();
+        int id = GL11.glGenTextures();
 
         GL11.glBindTexture(target, id);
-        GL11.glTexImage2D(target, 0, GL11.GL_RGBA, width, height, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, (ByteBuffer)null);
+        GL11.glTexImage2D(target, 0, GL11.GL_RGBA, texWidth, texHeight, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, (ByteBuffer)null);
         GL11.glTexParameteri(target, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST);
         GL11.glTexParameteri(target, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_NEAREST);
 
-        LWJGLDynamicImage image = new LWJGLDynamicImage(this, target, id, width, height, Color.WHITE);
+        LWJGLDynamicImage image = new LWJGLDynamicImage(this, target, id, width, height, texWidth, texHeight, Color.WHITE);
         dynamicImages.add(image);
         return image;
+    }
+
+    public Image createGradient(Gradient gradient) {
+        return new GradientImage(this, gradient);
     }
 
     public void clipEnter(int x, int y, int w, int h) {
@@ -475,8 +494,7 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
                 }
             }
         } catch(LWJGLException ex) {
-            Logger.getLogger(LWJGLRenderer.class.getName()).log(Level.WARNING,
-                    "Could not set native cursor", ex);
+            getLogger().log(Level.WARNING, "Could not set native cursor", ex);
         }
     }
 
@@ -603,10 +621,10 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
     }
 
     protected void getTintedColor(Color color, float[] result) {
-        result[0] = tintStack.r*(color.getR()&255);
-        result[1] = tintStack.g*(color.getG()&255);
-        result[2] = tintStack.b*(color.getB()&255);
-        result[3] = tintStack.a*(color.getA()&255);
+        result[0] = tintStack.r*color.getRed();
+        result[1] = tintStack.g*color.getGreen();
+        result[2] = tintStack.b*color.getBlue();
+        result[3] = tintStack.a*color.getAlpha();
     }
     
     /**
@@ -635,27 +653,43 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
         }
     }
 
+    /**
+     * Retrieves the active clip region from the top of the stack
+     * @param rect the rect coordinates - may not be updated when clipping is disabled
+     * @return true if clipping is active, false if clipping is disabled
+     */
+    public boolean getClipRect(Rect rect) {
+        return clipStack.getClipRect(rect);
+    }
+
     Logger getLogger() {
         return Logger.getLogger(LWJGLRenderer.class.getName());
     }
-
-    int glGenTexture() {
-        ib16.clear().limit(1);
-        GL11.glGenTextures(ib16);
-        return ib16.get(0);
-    }
-
-    void glDeleteTexture(int id) {
-        ib16.clear();
-        ib16.put(id).flip();
-        GL11.glDeleteTextures(ib16);
+    
+    /**
+     * If the passed value is not a power of 2 then return the next highest power of 2
+     * otherwise the value is returned unchanged.
+     * 
+     * <p> Warren Jr., Henry S. (2002). Hacker's Delight. Addison Wesley. pp. 48. ISBN 978-0201914658</p>
+     * 
+     * @param i a non negative number &lt;= 2^31
+     * @return the smallest power of 2 which is &gt;= i
+     */
+    private static int nextPowerOf2(int i) {
+        i--;
+        i |= (i >>  1);
+        i |= (i >>  2);
+        i |= (i >>  4);
+        i |= (i >>  8);
+        i |= (i >> 16);
+        return i+1;
     }
 
     private static class SWCursorAnimState implements AnimationState {
         private final long[] lastTime;
         private final boolean[] active;
 
-        public SWCursorAnimState() {
+        SWCursorAnimState() {
             lastTime = new long[3];
             active = new boolean[3];
         }

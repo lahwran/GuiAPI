@@ -15,12 +15,12 @@ public class mod_GuiApiIngameMessageExample extends BaseMod {
 
 	@Override
 	public String getVersion() {
-		return "1.2.4";
+		return "1.0";
 	}
 
 	@Override
 	public void load() {
-		exampleItem = new ItemGuiApiExample(30012).setItemName(
+		exampleItem = new ItemGuiApiExample(28000).setItemName(
 				"GuiApiExampleItem").setIconCoord(10, 2);
 		// Create the example item, set the Name, and give it the sign's icon.
 		ModLoader.addName(exampleItem, "GuiAPI Example Item");

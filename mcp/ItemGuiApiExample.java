@@ -20,7 +20,7 @@ public class ItemGuiApiExample extends Item {
 	}
 
 	@Override
-	public int getColorFromDamage(int par1, int par2) {
+	public int getColorFromItemStack(ItemStack par1ItemStack, int par2) {
 		// This simply tints the sign black to differentiate it. This way I
 		// didn't have to use a sprite. (This isn't a part of GuiAPI)
 		return 986895;

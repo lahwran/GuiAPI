@@ -6,24 +6,15 @@ GuiAPI uses the TWL library from Matthias Mann, see http://twl.l33tlabs.org/
 Building
 --------
 
-* Currently, GuiAPI uses MCP for the most part, so you are going to need to decompile a jar with it. To start, we need to make sure we have all the needed references, so before you decompile install the following:
-    - twl/bin/*
-    - xpp3-1.1.4c/*
-    - theme/*
-* Add ModLoader or any other APIs you want to use at this point. ModLoader is not required to build this though.
-* Decompile with MCP. It shouldn't decompile anything you added though, but that's OK.
-* After that, drag in all the mcp source files from mcp/* EXCEPT for GuiOptions.java.
-    - That's a base class, so we are going to edit the small changes we made in. I'm not going to go into much detail, since you can see the finished file, but I'll explain a bit. The code itself you can view in the patched GuiOptions.java.
-* Now we need to patch GuiOptions.java to add the Global Mod Settings button.
-    - In public void initGui(), you need to add the Global Mod Settings button. Add it in second last, before gui.done.
-    - Then, move options.video and options.controls up slightly in the same method. I suggest getting rid of the + 12 parts for each, as I did.
-    - Now we need to add the button handler. So in protected void actionPerformed(GuiButton var1) add a handler for the ID you used. I used 300.
-* Now recompile and test! You are all done. Again, if you have any issues patching GuiOptions.java just look at the prepatched version.
+* Decompile Minecraft with MCP. If you are using forge, use that install script. Basically start as if you weren't going to use GuiAPI at all.
+* Now, download the Dev package you need for your version of GuiAPI. For example, if you were developing for 0.15.1, since there's no 0.15.1 dev package, you would download the dev package for 0.15.0. Copy the contents of this into Minecraft.jar.
+* After that, drag in all the mcp source files from mcp/* into the src\minecraft\net\minecraft\src directory in MCP.
+* Now recompile and test! You are all done.
 
 Packaging
 ---------
 
-To create a distributable archive, package twl/bin/*, xpp*/*, theme/*, and bin/*. The only base Minecraft class this edits is GuiOptions.
+To create a distributable archive, package twl/bin/*, xpp*/*, theme/*, and bin/*.
 
 Credits
 -------
@@ -36,6 +27,4 @@ Credits
 Documentation
 -------------
 
-Read all javadocs at https://dl.dropbox.com/u/3687570/GuiAPI%20Javadoc/index.html
-
-They are updated as I commit. Note the documentation isn't that great (It's not my strong point), I just tried to tag everything and explain roughly what it does.
+All releases should be tagged here on github, and you can view the docs there. I haven't bothered setting up proper javadocs hosting on github yet.

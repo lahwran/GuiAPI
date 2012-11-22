@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2011, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -228,11 +228,7 @@ public class ResizableFrame extends Widget {
 
     protected void applyThemeResizableFrame(ThemeInfo themeInfo) {
         for(DragMode m : DragMode.values()) {
-            if(m.cursorName != null) {
-                cursors[m.ordinal()] = themeInfo.getMouseCursor(m.cursorName);
-            } else {
-                cursors[m.ordinal()] = null;
-            }
+            cursors[m.ordinal()] = themeInfo.getMouseCursor(m.cursorName);
         }
         titleAreaTop = themeInfo.getParameter("titleAreaTop", 0);
         titleAreaLeft = themeInfo.getParameter("titleAreaLeft", 0);
@@ -275,7 +271,7 @@ public class ResizableFrame extends Widget {
     protected void fadeTo(Color color, int duration) {
         //System.out.println("Start fade to " + color + " over " + duration + " ms");
         allocateTint().fadeTo(color, duration);
-        if(!super.isVisible() && color.getA() != 0) {
+        if(!super.isVisible() && color.getAlpha() != 0) {
             setHardVisible(true);
         }
     }
@@ -438,6 +434,42 @@ public class ResizableFrame extends Widget {
     }
 
     @Override
+    public int getMaxWidth() {
+        int maxWidth = super.getMaxWidth();
+        for(int i=0,n=getNumChildren() ; i<n ; i++) {
+            Widget child = getChild(i);
+            if(!isFrameElement(child)) {
+                int aMaxWidth = child.getMaxWidth();
+                if(aMaxWidth > 0) {
+                    aMaxWidth += getBorderHorizontal();
+                    if(maxWidth == 0 || aMaxWidth < maxWidth) {
+                        maxWidth = aMaxWidth;
+                    }
+                }
+            }
+        }
+        return maxWidth;
+    }
+
+    @Override
+    public int getMaxHeight() {
+        int maxHeight = super.getMaxHeight();
+        for(int i=0,n=getNumChildren() ; i<n ; i++) {
+            Widget child = getChild(i);
+            if(!isFrameElement(child)) {
+                int aMaxHeight = child.getMaxHeight();
+                if(aMaxHeight > 0) {
+                    aMaxHeight += getBorderVertical();
+                    if(maxHeight == 0 || aMaxHeight < maxHeight) {
+                        maxHeight = aMaxHeight;
+                    }
+                }
+            }
+        }
+        return maxHeight;
+    }
+
+    @Override
     public int getPreferredInnerWidth() {
         int prefWidth = 0;
         for(int i=0,n=getNumChildren() ; i<n ; i++) {
@@ -502,10 +534,6 @@ public class ResizableFrame extends Widget {
             return true;
         }
 
-        DragMode cursorMode = getDragMode(evt.getMouseX(), evt.getMouseY());
-        MouseCursor cursor = cursors[cursorMode.ordinal()];
-        setMouseCursor(cursor);
-
         if(!isMouseExit && resizeHandle != null && resizeHandle.isVisible()) {
             resizeHandle.getAnimationState().setAnimationState(
                     TextWidget.STATE_HOVER, resizeHandle.isMouseInside(evt));
@@ -515,7 +543,6 @@ public class ResizableFrame extends Widget {
             if(evt.getType() == Event.Type.MOUSE_BTNDOWN &&
                     evt.getMouseButton() == Event.MOUSE_LBUTTON &&
                     handleMouseDown(evt)) {
-                setMouseCursor(cursors[dragMode.ordinal()]);
                 return true;
             }
         }
@@ -525,6 +552,19 @@ public class ResizableFrame extends Widget {
         }
 
         return evt.isMouseEvent();
+    }
+
+    @Override
+    public MouseCursor getMouseCursor(Event evt) {
+        DragMode cursorMode = dragMode;
+        if(cursorMode == DragMode.NONE) {
+            cursorMode = getDragMode(evt.getMouseX(), evt.getMouseY());
+            if(cursorMode == DragMode.NONE) {
+                return getMouseCursor();
+            }
+        }
+        
+        return cursors[cursorMode.ordinal()];
     }
 
     private DragMode getDragMode(int mx, int my) {
@@ -681,7 +721,7 @@ public class ResizableFrame extends Widget {
         case POSITION:
             if(getParent() != null) {
                 int minY = getParent().getInnerY();
-                int maxY = getParent().getInnerHeight();
+                int maxY = getParent().getInnerBottom();
                 int height = dragInitialBottom - dragInitialTop;
                 top = Math.max(minY, Math.min(maxY - height, top + dy));
                 bottom = Math.min(maxY, Math.max(minY + height, bottom + dy));

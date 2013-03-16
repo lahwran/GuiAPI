@@ -25,9 +25,9 @@ public class mod_GuiApiIngameMessageExample extends BaseMod {
 
 	@Override
 	public void load() {
-		exampleItem = new ItemGuiApiExample(28000).setItemName(
-				"GuiApiExampleItem").setIconCoord(10, 2);
-		// Create the example item, set the Name, and give it the sign's icon.
+		exampleItem = new ItemGuiApiExample(28000).setUnlocalizedName(
+				"GuiApiExampleItem");
+		// Create the example item, set the Name. It will use the sign's icon itself.
 		ModLoader.addName(exampleItem, "GuiAPI Example Item");
 		// Give it a 'real' name.
 		ModLoader.addShapelessRecipe(new ItemStack(exampleItem), new Object[] {

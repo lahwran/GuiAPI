@@ -1,7 +1,10 @@
 package sharose.mods.guiapi.examples;
 
+import cpw.mods.fml.relauncher.Side;
+import cpw.mods.fml.relauncher.SideOnly;
 import sharose.mods.guiapi.GuiApiHelper;
 import sharose.mods.guiapi.GuiModScreen;
+import net.minecraft.client.renderer.texture.IconRegister;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -50,5 +53,13 @@ public class ItemGuiApiExample extends Item {
 		// Finally, 'show' your new widget.
 		return par1ItemStack;
 		// Return the ItemStack without any changes (we aren't using it up).
+	}
+	
+	@Override
+	@SideOnly(Side.CLIENT)
+    public void func_94581_a(IconRegister par1IconRegister)
+	{
+		this.iconIndex = Item.sign.getIconFromDamage(0);
+		return; // Please, please never do this. This is just a hack.
 	}
 }

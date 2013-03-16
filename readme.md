@@ -8,6 +8,7 @@ Building
 
 * Use the forge installer script. (It will decompile minecraft for you, as well as download it, etc)
 * Now, download the Dev package you need for your version of GuiAPI. For example, if you were developing for 0.15.1, since there's no 0.15.1 dev package, you would download the dev package for 0.15.0. Copy the contents of this into Minecraft.jar.
+ * Dev Packages and all previous versions of GuiAPI are available in the 'releases' branch.
 * After that, drag in all the mcp source files from mcp/* into the src\minecraft directory in MCP.
 * Now recompile and test! You are all done.
 

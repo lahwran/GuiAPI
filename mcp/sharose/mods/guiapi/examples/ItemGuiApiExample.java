@@ -57,7 +57,7 @@ public class ItemGuiApiExample extends Item {
 	
 	@Override
 	@SideOnly(Side.CLIENT)
-    public void func_94581_a(IconRegister par1IconRegister)
+    public void updateIcons(IconRegister par1IconRegister)
 	{
 		this.iconIndex = Item.sign.getIconFromDamage(0);
 		return; // Please, please never do this. This is just a hack.

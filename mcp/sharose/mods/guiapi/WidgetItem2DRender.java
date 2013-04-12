@@ -11,6 +11,9 @@ import net.minecraft.item.ItemStack;
 
 import org.lwjgl.opengl.GL11;
 
+import cpw.mods.fml.common.ObfuscationReflectionHelper;
+import cpw.mods.fml.common.asm.transformers.deobf.FMLDeobfuscatingRemapper;
+
 import de.matthiasmann.twl.GUI;
 import de.matthiasmann.twl.Widget;
 
@@ -25,32 +28,7 @@ import de.matthiasmann.twl.Widget;
  */
 public class WidgetItem2DRender extends Widget {
 
-	private static Field isDrawingField;
-
 	private static RenderItem itemRenderer = new RenderItem();
-
-	static
-	{
-		try
-		{
-			WidgetItem2DRender.isDrawingField = Tessellator.class.getDeclaredField("z");
-			WidgetItem2DRender.isDrawingField.setAccessible(true);
-		}
-		catch(Throwable e)
-		{
-			try
-			{
-				WidgetItem2DRender.isDrawingField = Tessellator.class.getDeclaredField("isDrawing");
-				WidgetItem2DRender.isDrawingField.setAccessible(true);
-			}
-			catch(Throwable e2)
-			{
-				System.out.println("GuiAPI Warning: Unable to get Tessellator.isDrawing field! There will be a chance of crashes if you attempt to render a mod item!");
-			}
-
-		}
-
-	}
 
 	private ItemStack renderStack;
 
@@ -110,23 +88,6 @@ public class WidgetItem2DRender extends Widget {
 	 */
 	public int getScaleType() {
 		return scaleType;
-	}
-
-	private boolean isDrawing(Tessellator tesselator)
-	{
-		if(WidgetItem2DRender.isDrawingField == null)
-		{
-			return false;
-		}
-		try
-		{
-			WidgetItem2DRender.isDrawingField.getBoolean(tesselator);
-		}
-		catch(Throwable e)
-		{
-
-		}
-		return false;
 	}
 
 	@Override
@@ -215,36 +176,21 @@ public class WidgetItem2DRender extends Widget {
 
 		ItemStack stack = getRenderStack();
 
-		if(isDrawing(Tessellator.instance))
-		{
-			//Yes, this IS stuff to work around 'bad' mods :D
-			setDrawing(Tessellator.instance, false);
-		}
+		Tessellator.instance.isDrawing = false;
+		
 		int stackBeforeDraw = GL11.glGetInteger(GL11.GL_MODELVIEW_STACK_DEPTH);
 		try {
 
 			WidgetItem2DRender.itemRenderer
 			.renderItemIntoGUI(minecraft.fontRenderer,
 					minecraft.renderEngine, stack, x, y);
-			if(isDrawing(Tessellator.instance))
-			{
-				//Yes, this IS stuff to work around 'bad' mods :D
-				setDrawing(Tessellator.instance, false);
-			}
+			Tessellator.instance.isDrawing = false;
 			WidgetItem2DRender.itemRenderer
 			.renderItemOverlayIntoGUI(minecraft.fontRenderer,
 					minecraft.renderEngine, stack, x, y);
-			if(isDrawing(Tessellator.instance))
-			{
-				//Yes, this IS stuff to work around 'bad' mods :D
-				setDrawing(Tessellator.instance, false);
-			}
+			Tessellator.instance.isDrawing = false;
 		} catch (Throwable e) {
-			if(isDrawing(Tessellator.instance))
-			{
-				//Yes, this IS stuff to work around 'bad' mods :D
-				setDrawing(Tessellator.instance, false);
-			}
+			Tessellator.instance.isDrawing = false;
 		}
 
 		int stackAfterDraw = GL11.glGetInteger(GL11.GL_MODELVIEW_STACK_DEPTH);
@@ -263,22 +209,6 @@ public class WidgetItem2DRender extends Widget {
 		GL11.glPopMatrix();
 		GL11.glDisable(GL11.GL_SCISSOR_TEST);
 		screen.renderer.resumeRendering();
-	}
-
-	private void setDrawing(Tessellator tesselator, boolean state)
-	{
-		if(WidgetItem2DRender.isDrawingField == null)
-		{
-			return;
-		}
-		try
-		{
-			WidgetItem2DRender.isDrawingField.setBoolean(tesselator, state);
-		}
-		catch(Throwable e)
-		{
-
-		}
 	}
 
 	/**

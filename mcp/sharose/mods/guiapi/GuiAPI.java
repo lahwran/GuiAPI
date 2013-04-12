@@ -8,6 +8,7 @@ import java.util.Map;
 
 import cpw.mods.fml.common.ITickHandler;
 import cpw.mods.fml.common.Mod;
+import cpw.mods.fml.common.ObfuscationReflectionHelper;
 import cpw.mods.fml.common.Mod.Init;
 import cpw.mods.fml.common.Mod.PreInit;
 import cpw.mods.fml.common.TickType;
@@ -23,33 +24,54 @@ import net.minecraft.client.settings.EnumOptions;
 import net.minecraft.src.BaseMod;
 import net.minecraft.src.ModLoader;
 
-@Mod(name = "GuiAPI", modid = "GuiAPI", version = "0.15.3", acceptedMinecraftVersions = "1.5")
-public class GuiAPI implements IFMLLoadingPlugin, ITickHandler {
+@Mod(name = "GuiAPI", modid = "GuiAPI", version = "0.15.5", acceptedMinecraftVersions = "1.5.1")
+public class GuiAPI implements ITickHandler {
 
 	Object cacheCheck = null;
 	Field controlListField;
 
 	@Init
 	public void init(FMLInitializationEvent event) {
-		try {
-			Field[] fields = GuiScreen.class.getDeclaredFields();
-			for (int i = 0; i < fields.length; i++) {
-				if (fields[i].getType() == List.class) {
-					controlListField = fields[i];
-					controlListField.setAccessible(true);
-					break;
+		
+		try
+		{
+			controlListField = GuiScreen.class.getDeclaredField(ObfuscationReflectionHelper
+					.remapFieldNames("net.minecraft.client.gui.GuiScreen", "buttonList")[0]);
+			controlListField.setAccessible(true);
+		}
+		catch(Throwable e)
+		{
+			try
+			{
+				controlListField = GuiScreen.class.getDeclaredField("buttonList");
+				controlListField.setAccessible(true);
+			}
+			catch(Throwable e2)
+			{
+				try {
+					Field[] fields = GuiScreen.class.getDeclaredFields();
+					for (int i = 0; i < fields.length; i++) {
+						if (fields[i].getType() == List.class) {
+							controlListField = fields[i];
+							controlListField.setAccessible(true);
+							break;
+						}
+					}
+					if (controlListField == null) {
+						throw new Exception("No fields found on GuiScreen ("
+								+ GuiScreen.class.getSimpleName()
+								+ ") of type List! This should never happen!");
+					}
+				} catch (Throwable e3) {
+					throw new RuntimeException(
+							"Unable to get Field reference for GuiScreen.controlList!",
+							e3);
 				}
 			}
-			if (controlListField == null) {
-				throw new Exception("No fields found on GuiScreen ("
-						+ GuiScreen.class.getSimpleName()
-						+ ") of type List! This should never happen!");
-			}
-		} catch (Throwable e) {
-			throw new RuntimeException(
-					"Unable to get Field reference for GuiScreen.controlList!",
-					e);
+
 		}
+		
+		
 		TickRegistry.registerTickHandler(this, Side.CLIENT);
 	}
 
@@ -103,30 +125,6 @@ public class GuiAPI implements IFMLLoadingPlugin, ITickHandler {
 
 			// set the cache!
 			cacheCheck = controlList.get(0);
-	}
-
-	@Override
-	public String[] getLibraryRequestClass() {
-		return null;
-	}
-
-	@Override
-	public String[] getASMTransformerClass() {
-		return null;
-	}
-
-	@Override
-	public String getModContainerClass() {
-		return null;
-	}
-
-	@Override
-	public String getSetupClass() {
-		return null;
-	}
-
-	@Override
-	public void injectData(Map<String, Object> data) {
 	}
 
 	@Override

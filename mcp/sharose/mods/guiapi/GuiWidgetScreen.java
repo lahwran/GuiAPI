@@ -5,6 +5,8 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLStreamHandler;
 
+import org.lwjgl.opengl.Util;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ScaledResolution;
 import de.matthiasmann.twl.GUI;
@@ -46,12 +48,16 @@ public class GuiWidgetScreen extends Widget {
 		}
 
 		try {
+			Util.checkGLError();
 			GuiWidgetScreen.instance = new GuiWidgetScreen();
+			Util.checkGLError();
 			GuiWidgetScreen.instance.renderer = new LWJGLRenderer();
+			Util.checkGLError();
 			String themename = "twlGuiTheme.xml";
+			Util.checkGLError();
 			GuiWidgetScreen.instance.gui = new GUI(GuiWidgetScreen.instance,
 					GuiWidgetScreen.instance.renderer, new LWJGLInput());
-
+			Util.checkGLError();
 			GuiWidgetScreen.themeURL = new URL("classloader","",-1,themename,new URLStreamHandler(){
 				@Override
 				protected URLConnection openConnection(URL paramURL) throws IOException {
@@ -60,12 +66,13 @@ public class GuiWidgetScreen extends Widget {
 					return GuiWidgetScreen.class.getClassLoader().getResource(file).openConnection();
 				}
 			});
-			
+			Util.checkGLError();
 			//GuiWidgetScreen.themeURL = new URL("file:\\G:\\MineCraft\\GitHub\\GuiAPI\\theme\\twlGuiTheme.xml");
-			
+			Util.checkGLError();
 			GuiWidgetScreen.instance.theme = ThemeManager
 					.createThemeManager(GuiWidgetScreen.themeURL,
 							GuiWidgetScreen.instance.renderer);
+			Util.checkGLError();
 			if (GuiWidgetScreen.instance.theme == null) {
 				throw new RuntimeException(
 						"I don't think you installed the theme correctly ...");

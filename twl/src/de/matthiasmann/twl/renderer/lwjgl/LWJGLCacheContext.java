@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GLContext;
+import org.lwjgl.opengl.Util;
 
 /**
  *
@@ -62,9 +63,12 @@ public class LWJGLCacheContext implements CacheContext {
 
     LWJGLTexture loadTexture(URL url, LWJGLTexture.Format fmt, LWJGLTexture.Filter filter) throws IOException {
         String urlString = url.toString();
+        Util.checkGLError();
         LWJGLTexture texture = textures.get(urlString);
+        Util.checkGLError();
         if(texture == null) {
             texture = createTexture(url, fmt, filter, null);
+            Util.checkGLError();
             textures.put(urlString, texture);
         }
         return texture;
@@ -74,10 +78,15 @@ public class LWJGLCacheContext implements CacheContext {
         if(!valid) {
             throw new IllegalStateException("CacheContext already destroyed");
         }
+        Util.checkGLError();
         InputStream is = textureUrl.openStream();
+        Util.checkGLError();
         try {
+        	Util.checkGLError();
             PNGDecoder dec = new PNGDecoder(is);
+            Util.checkGLError();
             fmt = decideTextureFormat(dec, fmt);
+            Util.checkGLError();
             int width = dec.getWidth();
             int height = dec.getHeight();
             int maxTextureSize = renderer.maxTextureSize;
@@ -85,24 +94,32 @@ public class LWJGLCacheContext implements CacheContext {
             if(width > maxTextureSize || height > maxTextureSize) {
                 throw new IOException("Texture size too large. Maximum supported texture by this system is " + maxTextureSize);
             }
-
+            Util.checkGLError();
             if(GLContext.getCapabilities().GL_EXT_abgr) {
+            	Util.checkGLError();
                 if(fmt == LWJGLTexture.Format.RGBA) {
+                	Util.checkGLError();
                     fmt = LWJGLTexture.Format.ABGR;
                 }
             } else if(fmt == LWJGLTexture.Format.ABGR) {
+            	Util.checkGLError();
                 fmt = LWJGLTexture.Format.RGBA;
             }
-
+            Util.checkGLError();
             int stride = width * fmt.getPixelSize();
+            Util.checkGLError();
             ByteBuffer buf = BufferUtils.createByteBuffer(stride * height);
+            Util.checkGLError();
             dec.decode(buf, stride, fmt.getPngFormat());
+            Util.checkGLError();
             buf.flip();
 
             if(tpp != null) {
+            	Util.checkGLError();
                 tpp.process(buf, stride, width, height, fmt);
+                Util.checkGLError();
             }
-
+            Util.checkGLError();
             LWJGLTexture texture = new LWJGLTexture(renderer, width, height, buf, fmt, filter);
             allTextures.add(texture);
             return texture;

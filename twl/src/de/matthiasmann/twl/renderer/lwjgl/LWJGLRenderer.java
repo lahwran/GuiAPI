@@ -65,6 +65,7 @@ import org.lwjgl.opengl.ContextCapabilities;
 import org.lwjgl.opengl.EXTTextureRectangle;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GLContext;
+import org.lwjgl.opengl.Util;
 
 /**
  * A renderer using only GL11 features.
@@ -346,7 +347,8 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
     }
 
     public Font loadFont(URL url, StateSelect select, FontParameter ... parameterList) throws IOException {
-        if(url == null) {
+    	Util.checkGLError();
+    	if(url == null) {
             throw new NullPointerException("url");
         }
         if(select == null) {
@@ -355,10 +357,13 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
         if(parameterList == null) {
             throw new NullPointerException("parameterList");
         }
+        
         if(select.getNumExpressions() + 1 != parameterList.length) {
             throw new IllegalArgumentException("select.getNumExpressions() + 1 != parameterList.length");
         }
+        Util.checkGLError();
         BitmapFont bmFont = activeCacheContext().loadBitmapFont(url);
+        Util.checkGLError();
         return new LWJGLFont(this, bmFont, select, parameterList);
     }
 
@@ -508,17 +513,22 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
     }
 
     public LWJGLTexture load(URL textureUrl, LWJGLTexture.Format fmt, LWJGLTexture.Filter filter) throws IOException {
-        return load(textureUrl, fmt, filter, null);
+    	Util.checkGLError();
+    	return load(textureUrl, fmt, filter, null);
     }
 
     public LWJGLTexture load(URL textureUrl, LWJGLTexture.Format fmt, LWJGLTexture.Filter filter, TexturePostProcessing tpp) throws IOException {
         if(textureUrl == null) {
             throw new NullPointerException("textureUrl");
         }
+        Util.checkGLError();
         LWJGLCacheContext cc = activeCacheContext();
+        Util.checkGLError();
         if(tpp != null) {
+        	Util.checkGLError();
             return cc.createTexture(textureUrl, fmt, filter, tpp);
         } else {
+        	Util.checkGLError();
             return cc.loadTexture(textureUrl, fmt, filter);
         }
     }

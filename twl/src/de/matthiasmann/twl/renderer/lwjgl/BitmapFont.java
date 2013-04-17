@@ -43,6 +43,7 @@ import java.net.URL;
 import java.nio.FloatBuffer;
 import java.util.HashMap;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.Util;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
@@ -140,7 +141,9 @@ public class BitmapFont {
             throw new UnsupportedOperationException("only page id 0 supported");
         }
         String textureName = xmlp.getAttributeValue(null, "file");
+        Util.checkGLError();
         this.texture = renderer.load(new URL(baseUrl, textureName), LWJGLTexture.Format.ALPHA, LWJGLTexture.Filter.NEAREST);
+        Util.checkGLError();
         xmlp.nextTag();
         xmlp.require(XmlPullParser.END_TAG, null, "page");
         xmlp.nextTag();
@@ -287,6 +290,7 @@ public class BitmapFont {
                 xmlp.require(XmlPullParser.START_DOCUMENT, null, null);
                 xmlp.nextTag();
                 startTagSeen = true;
+                Util.checkGLError();
                 return new BitmapFont(renderer, xmlp, url);
             } finally {
                 xmlp.close();

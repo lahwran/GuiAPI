@@ -24,7 +24,7 @@ import net.minecraft.client.settings.EnumOptions;
 import net.minecraft.src.BaseMod;
 import net.minecraft.src.ModLoader;
 
-@Mod(name = "GuiAPI", modid = "GuiAPI", version = "0.15.5", acceptedMinecraftVersions = "1.5.1")
+@Mod(name = "GuiAPI", modid = "GuiAPI", version = "0.15.5 - DEBUG", acceptedMinecraftVersions = "1.5.1")
 public class GuiAPI implements ITickHandler {
 
 	Object cacheCheck = null;

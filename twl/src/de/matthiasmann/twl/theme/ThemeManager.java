@@ -60,6 +60,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
+
+import org.lwjgl.opengl.Util;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
@@ -422,7 +424,7 @@ public class ThemeManager {
         fontParams.add(baseParams);
         StateSelect stateSelect = new StateSelect(stateExpr);
         FontParameter[] stateParams = fontParams.toArray(new FontParameter[fontParams.size()]);
-        
+        Util.checkGLError();
         if(fontFamilies != null) {
             FontMapper fontMapper = renderer.getFontMapper();
             if(fontMapper != null) {
@@ -432,7 +434,7 @@ public class ThemeManager {
                 }
             }
         }
-        
+        Util.checkGLError();
         return renderer.loadFont(url, stateSelect, stateParams);
     }
     

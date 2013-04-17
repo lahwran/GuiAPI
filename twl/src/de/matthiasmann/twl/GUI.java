@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  * 
  * All rights reserved.
  * 
@@ -111,6 +111,7 @@ public final class GUI extends Widget {
     private int mouseClickedX;
     private int mouseClickedY;
     private long mouseEventTime;
+    private long tooltipEventTime;
     private long mouseClickedTime;
     private long keyEventTime;
     private int keyRepeatDelay;
@@ -119,14 +120,12 @@ public final class GUI extends Widget {
     private Widget lastMouseClickWidget;
     private PopupWindow boundDragPopup;
     private Runnable boundDragCallback;
+    private Widget focusKeyWidget;
     
     private int mouseIdleTime = 60;
     private boolean mouseIdleState;
     private MouseIdleListener mouseIdleListener;
     
-    private Rect[] clipRects;
-    private int numClipRects;
-
     private InfoWindow activeInfoWindow;
     private final Widget infoWindowPlaceholder;
     
@@ -137,8 +136,12 @@ public final class GUI extends Widget {
     private long tooltipClosedTime;
     
     final ArrayList<Timer> activeTimers;
-    private final ArrayList<Runnable> invokeLaterQueue;
     final ExecutorService executorService;
+    
+    private final Object invokeLock;
+    private Runnable[] invokeLaterQueue;
+    private int invokeLaterQueueSize;
+    private Runnable[] invokeRunnables;
     
     /**
      * Constructs a new GUI manager with the given renderer and a default root
@@ -189,7 +192,6 @@ public final class GUI extends Widget {
         this.event = new Event();
         this.rootPane = rootPane;
         this.rootPane.setFocusKeyEnabled(false);
-        this.clipRects = new Rect[8];
 
         this.infoWindowPlaceholder = new Widget();
         this.infoWindowPlaceholder.setTheme("");
@@ -199,8 +201,10 @@ public final class GUI extends Widget {
         this.tooltipWindow.setVisible(false);
         
         this.activeTimers = new ArrayList<Timer>();
-        this.invokeLaterQueue = new ArrayList<Runnable>();
         this.executorService =  Executors.newSingleThreadExecutor(new TF());    // thread creatation is lazy
+        this.invokeLock = new Object();
+        this.invokeLaterQueue = new Runnable[16];
+        this.invokeRunnables = new Runnable[16];
         
         setTheme("");
         setFocusKeyEnabled(false);
@@ -301,8 +305,11 @@ public final class GUI extends Widget {
         if(runnable == null) {
             throw new IllegalArgumentException("runnable is null");
         }
-        synchronized(invokeLaterQueue) {
-            invokeLaterQueue.add(runnable);
+        synchronized(invokeLock) {
+            if(invokeLaterQueueSize == invokeLaterQueue.length) {
+                growInvokeLaterQueue();
+            }
+            invokeLaterQueue[invokeLaterQueueSize++] = runnable;
         }
     }
 
@@ -366,12 +373,6 @@ public final class GUI extends Widget {
             return true;
         }
         return false;
-    }
-
-    public void requestToolTipUpdate(Widget widget) {
-        if(tooltipOwner == widget) {
-            tooltipOwner = null;
-        }
     }
 
     public MouseIdleListener getMouseIdleListener() {
@@ -439,9 +440,32 @@ public final class GUI extends Widget {
         this.tooltipOffsetX = tooltipOffsetX;
         this.tooltipOffsetY = tooltipOffsetY;
     }
+    
+    /**
+     * Sets set offscreen rendering delegate on the tooltip window.
+     * Can be null to disable offscreen rendering.
+     * 
+     * @param renderOffscreen the offscreen rendering delegate.
+     * @see Widget#setRenderOffscreen(de.matthiasmann.twl.Widget.RenderOffscreen) 
+     */
+    public void setTooltipWindowRenderOffscreen(RenderOffscreen renderOffscreen) {
+        tooltipWindow.setRenderOffscreen(renderOffscreen);
+    }
+    
+    /**
+     * Changes the theme name of the tooltip window and applies and calls {@link #reapplyTheme() }
+     * 
+     * @param theme the new theme path element
+     * @see Widget#setTheme(java.lang.String) 
+     */
+    public void setTooltipWindowTheme(String theme) {
+        tooltipWindow.setTheme(theme);
+        tooltipWindow.reapplyTheme();
+    }
 
     /**
      * Throws UnsupportedOperationException
+     * @throws UnsupportedOperationException always
      */
     @Override
     public boolean setPosition(int x, int y) {
@@ -450,6 +474,7 @@ public final class GUI extends Widget {
 
     /**
      * Throws UnsupportedOperationException
+     * @throws UnsupportedOperationException always
      */
     @Override
     public void insertChild(Widget child, int index) {
@@ -458,6 +483,7 @@ public final class GUI extends Widget {
 
     /**
      * Throws UnsupportedOperationException
+     * @throws UnsupportedOperationException always
      */
     @Override
     public void removeAllChildren() {
@@ -466,6 +492,7 @@ public final class GUI extends Widget {
 
     /**
      * Throws UnsupportedOperationException
+     * @throws UnsupportedOperationException always
      */
     @Override
     public Widget removeChild(int index) {
@@ -524,7 +551,10 @@ public final class GUI extends Widget {
      * <li> {@link #setCursor() }
      * </ol>
      * 
-     * This is the easiest method to use this GUI
+     * This is the easiest method to use this GUI.
+     * 
+     * <p>When not using this method care must be taken to invoke the methods
+     * in the right order. See the javadoc of the individual methods for details.</p>
      */
     public void update() {
         setSize();
@@ -553,6 +583,10 @@ public final class GUI extends Widget {
      * Updates the current time returned by {@code getCurrentTime} by calling
      * {@link Renderer#getTimeMillis() } and computes the delta time since the last update.
      *
+     * <p>This must be called exactly <b>once</b> per frame and befiore processing
+     * input events or calling {@link #updateTimers() }. See {@link #update() }
+     * for the sequence in which the methods of this class should be called.</p>
+     * 
      * @see #getCurrentTime()
      * @see #getTimeMillis()
      */
@@ -564,7 +598,9 @@ public final class GUI extends Widget {
 
     /**
      * Updates all active timers with the delta time computed by {@code updateTime}.
-     * This method must be called exactly once after a call to {@code updateTime}.
+     * 
+     * <p>This method must be called exactly once after a call to {@code updateTime}.</p>
+     * 
      * @see #updateTime() 
      */
     public void updateTimers() {
@@ -584,37 +620,43 @@ public final class GUI extends Widget {
      */
     public void invokeRunables() {
         Runnable[] runnables = null;
-        synchronized(invokeLaterQueue) {
-            int size = invokeLaterQueue.size();
-            if(size > 0) {
-                runnables = invokeLaterQueue.toArray(new Runnable[size]);
-                invokeLaterQueue.clear();
+        int count;
+        synchronized(invokeLock) {
+            count = invokeLaterQueueSize;
+            if(count > 0) {
+                invokeLaterQueueSize = 0;
+                runnables = invokeLaterQueue;
+                invokeLaterQueue = invokeRunnables;
+                invokeRunnables = runnables;
             }
         }
-        if(runnables != null) {
-            for(Runnable r : runnables) {
-                try {
-                    r.run();
-                } catch (Throwable ex) {
-                    Logger.getLogger(GUI.class.getName()).log(Level.SEVERE, "Exception in runnable", ex);
-                }
+        for(int i=0 ; i<count ;) {
+            Runnable r = runnables[i];
+            runnables[i++] = null;
+            try {
+                r.run();
+            } catch (Throwable ex) {
+                Logger.getLogger(GUI.class.getName()).log(Level.SEVERE, "Exception in runnable", ex);
             }
         }
     }
 
     /**
-     * Renders all visible widgets. Calls {@code startRenderering} before and
+     * Renders all visible widgets. Calls {@code startRendering} before and
      * {@code endRendering} after rendering all widgets.
      *
-     * @see Renderer#startRenderering()
+     * @see Renderer#startRendering()
      * @see Renderer#endRendering() 
      */
     public void draw() {
-        numClipRects = 0;
-        
-        if(renderer.startRenderering()) {
+        if(renderer.startRendering()) {
             try {
                 drawWidget(this);
+                
+                if(dragActive && boundDragPopup == null && lastMouseDownWidget != null) {
+                    lastMouseDownWidget.paintDragOverlay(this,
+                            event.mouseX, event.mouseY, event.modifier);
+                }
             } finally {
                 renderer.endRendering();
             }
@@ -624,19 +666,42 @@ public final class GUI extends Widget {
     /**
      * Sets the cursor from the widget under the mouse
      *
+     * <p>If the widget is disabled or did not define a cursor then
+     * it's parent widget is tried. If no cursor was found the default
+     * OS cursor will be displayed.</p>
+     * 
      * @see Renderer#setCursor(de.matthiasmann.twl.renderer.MouseCursor) 
+     * @see Widget#getMouseCursor(de.matthiasmann.twl.Event) 
      */
     public void setCursor() {
+        event.type = Event.Type.MOUSE_MOVED;
         Widget widget = getWidgetUnderMouse();
-        if(widget != null && widget.isEnabled()) {
-            MouseCursor cursor = widget.getMouseCursor();
-            renderer.setCursor(cursor);
+        MouseCursor cursor = null;
+        while(widget != null) {
+            if(widget.isEnabled()) {
+                cursor = widget.getMouseCursor(event);
+                if(cursor != null) {
+                    break;
+                }
+            }
+            widget = widget.getParent();
         }
+        renderer.setCursor(cursor);
     }
 
     /**
-     * Polls input by calling {@link Input#pollInput(de.matthiasmann.twl.GUI) } if an input source was specified.
-     * If {@code pollInput} returned false then {@link #clearKeyboardState() } and {@link #clearMouseState() } are called.
+     * Polls input by calling {@link Input#pollInput(de.matthiasmann.twl.GUI) }
+     * if an input source was specified, otherwise it does nothing.
+     * 
+     * <p>If {@code pollInput} returned false then {@link #clearKeyboardState() }
+     * and {@link #clearMouseState() } are called.</p>
+     * 
+     * <p>If you don't want to use polled input you can easily use a push model
+     * for handling input. Just call the following methods:</p><ul>
+     * <li>{@link #handleKey(int, char, boolean) } for every keyboard event
+     * <li>{@link #handleMouse(int, int, int, boolean) } for every mouse event (buttons or move)
+     * <li>{@link #handleMouseWheel(int) } for any mouse wheel event
+     * </ul> These metods (including this one) needs to be called after {@link #updateTime() }
      */
     public void handleInput() {
         if(input != null && !input.pollInput(this)) {
@@ -656,6 +721,7 @@ public final class GUI extends Widget {
      */
     public final boolean handleMouse(int mouseX, int mouseY, int button, boolean pressed) {
         mouseEventTime = curTime;
+        tooltipEventTime = curTime;
         event.mouseButton = button;
 
         // only the previously pressed mouse button
@@ -885,10 +951,10 @@ public final class GUI extends Widget {
 
             if(pressed) {
                 keyRepeatDelay = KEYREPEAT_INITIAL_DELAY;
-                return sendEvent(Event.Type.KEY_PRESSED);
+                return sendKeyEvent(Event.Type.KEY_PRESSED);
             } else {
                 keyRepeatDelay = NO_REPEAT;
-                return sendEvent(Event.Type.KEY_RELEASED);
+                return sendKeyEvent(Event.Type.KEY_RELEASED);
             }
         } else {
             keyRepeatDelay = NO_REPEAT;
@@ -923,7 +989,7 @@ public final class GUI extends Widget {
                 keyEventTime = curTime;
                 keyRepeatDelay = KEYREPEAT_INTERVAL_DELAY;
                 event.keyRepeated = true;
-                sendEvent(Event.Type.KEY_PRESSED);  // refire last key event
+                sendKeyEvent(Event.Type.KEY_PRESSED);  // refire last key event
             }
         }
     }
@@ -941,7 +1007,7 @@ public final class GUI extends Widget {
         Widget widgetUnderMouse = getWidgetUnderMouse();
         if(widgetUnderMouse != tooltipOwner) {
             if(widgetUnderMouse != null && (
-                    ((curTime-mouseEventTime) > tooltipDelay) ||
+                    ((curTime-tooltipEventTime) > tooltipDelay) ||
                     (hadOpenTooltip && (curTime-tooltipClosedTime) < tooltipReappearDelay))) {
                 setTooltip(
                         event.mouseX + tooltipOffsetX,
@@ -981,7 +1047,7 @@ public final class GUI extends Widget {
         
         if(target != null) {
             if(target.isEnabled() || !isMouseAction(event)) {
-                target.handleEvent(event);
+                target.handleEvent(target.translateMouseEvent(event));
             }
             return target;
         } else {
@@ -1000,12 +1066,32 @@ public final class GUI extends Widget {
         }
     }
 
-    private boolean sendEvent(Event.Type type) {
-        assert !type.isMouseEvent;
+    private static final int FOCUS_KEY = Event.KEY_TAB;
+    
+    boolean isFocusKey() {
+        return event.keyCode == FOCUS_KEY &&
+                    ((event.modifier & (Event.MODIFIER_CTRL|Event.MODIFIER_META|Event.MODIFIER_ALT)) == 0);
+    }
+    
+    void setFocusKeyWidget(Widget widget) {
+        if(focusKeyWidget == null && isFocusKey()) {
+            focusKeyWidget = widget;
+        }
+    }
+    
+    private boolean sendKeyEvent(Event.Type type) {
+        assert type.isKeyEvent;
         popupEventOccured = false;
+        focusKeyWidget = null;
         event.type = type;
         event.dragEvent = false;
-        return getTopPane().handleEvent(event);
+        boolean handled = getTopPane().handleEvent(event);
+        if(!handled && focusKeyWidget != null) {
+            focusKeyWidget.handleFocusKeyEvent(event);
+            handled = true;
+        }
+        focusKeyWidget = null;  // allow GC
+        return handled;
     }
 
     private void sendPopupEvent(Event.Type type) {
@@ -1056,6 +1142,7 @@ public final class GUI extends Widget {
         popupEventOccured = true;
         closeInfoFromWidget(popup);
         requestKeyboardFocus(getTopPane());
+        resendLastMouseMove();
     }
 
     boolean hasOpenPopups(Widget owner) {
@@ -1162,6 +1249,17 @@ public final class GUI extends Widget {
         return super.requestKeyboardFocus(child);
     }
 
+    void requestTooltipUpdate(Widget widget, boolean resetToolTipTimer) {
+        if(tooltipOwner == widget) {
+            tooltipOwner = null;
+            if(resetToolTipTimer) {
+                hideTooltip();
+                hadOpenTooltip = false;
+                tooltipEventTime = curTime;
+            }
+        }
+    }
+
     private void hideTooltip() {
         if(tooltipWindow.isVisible()) {
             tooltipClosedTime = curTime;
@@ -1195,7 +1293,6 @@ public final class GUI extends Widget {
             }
             tooltipLabel.setBackground(null);
             tooltipLabel.setText(text);
-            tooltipWindow.adjustSize();
         } else if(content instanceof Widget) {
             Widget tooltipWidget = (Widget)content;
             if(tooltipWidget.getParent() != null && tooltipWidget.getParent() != tooltipWindow) {
@@ -1203,9 +1300,16 @@ public final class GUI extends Widget {
             }
             tooltipWindow.removeAllChildren();
             tooltipWindow.add(tooltipWidget);
-            tooltipWindow.adjustSize();
         } else {
             throw new IllegalArgumentException("Unsupported data type");
+        }
+        
+        tooltipWindow.adjustSize();
+        
+        // some Widgets (esp TextArea) have complex sizing policy
+        // give them a 2nd chance
+        if(tooltipWindow.isLayoutInvalid()) {
+            tooltipWindow.adjustSize();
         }
         
         int ttWidth = tooltipWindow.getWidth();
@@ -1254,38 +1358,6 @@ public final class GUI extends Widget {
         tooltipWindow.setPosition(x, y);
         tooltipWindow.setVisible(true);
     }
-
-    void clipEnter(int x, int y, int w, int h) {
-        Rect rect;
-        if(numClipRects == clipRects.length) {
-            Rect[] newRects = new Rect[numClipRects*2];
-            System.arraycopy(clipRects, 0, newRects, 0, numClipRects);
-            clipRects = newRects;
-        }
-        if((rect = clipRects[numClipRects]) == null) {
-            rect = new Rect();
-            clipRects[numClipRects] = rect;
-        }
-        rect.setXYWH(x, y, w, h);
-        if(numClipRects > 0) {
-            rect.intersect(clipRects[numClipRects-1]);
-        }
-        renderer.setClipRect(rect);
-        numClipRects++;
-    }
-
-    boolean clipEmpty() {
-        return clipRects[numClipRects-1].isEmpty();
-    }
-    
-    void clipLeave() {
-        numClipRects--;
-        if(numClipRects == 0) {
-            renderer.setClipRect(null);
-        } else {
-            renderer.setClipRect(clipRects[numClipRects-1]);
-        }
-    }
     
     private void callMouseIdleListener() {
         if(mouseIdleListener != null) {
@@ -1296,8 +1368,14 @@ public final class GUI extends Widget {
             }
         }
     }
+    
+    private void growInvokeLaterQueue() {
+        Runnable[] tmp = new Runnable[invokeLaterQueueSize*2];
+        System.arraycopy(invokeLaterQueue, 0, tmp, 0, invokeLaterQueueSize);
+        invokeLaterQueue = tmp;
+    }
 
-    static class TooltipWindow extends Widget {
+    static class TooltipWindow extends Container {
         public static final StateKey STATE_FADE = StateKey.get("fade");
         private int fadeInTime;
 
@@ -1328,31 +1406,6 @@ public final class GUI extends Widget {
                 super.paint(gui);
             }
         }
-
-        @Override
-        public int getMinWidth() {
-            return BoxLayout.computeMinWidthVertical(this);
-        }
-
-        @Override
-        public int getMinHeight() {
-            return BoxLayout.computeMinHeightHorizontal(this);
-        }
-
-        @Override
-        public int getPreferredInnerWidth() {
-            return BoxLayout.computePreferredWidthVertical(this);
-        }
-
-        @Override
-        public int getPreferredInnerHeight() {
-            return BoxLayout.computePreferredHeightHorizontal(this);
-        }
-
-        @Override
-        protected void layout() {
-            layoutChildrenFullInnerArea();
-        }
     }
 
     class AC<V> implements Callable<V>, Runnable {
@@ -1362,7 +1415,7 @@ public final class GUI extends Widget {
         private V result;
         private Exception exception;
 
-        public AC(Callable<V> jobC, Runnable jobR, AsyncCompletionListener<V> listener) {
+        AC(Callable<V> jobC, Runnable jobR, AsyncCompletionListener<V> listener) {
             this.jobC = jobC;
             this.jobR = jobR;
             this.listener = listener;
@@ -1398,7 +1451,7 @@ public final class GUI extends Widget {
         final AtomicInteger threadNumber = new AtomicInteger(1);
         final String prefix;
 
-        public TF() {
+        TF() {
             this.prefix = "GUI-" + poolNumber.getAndIncrement() + "-invokeAsync-";
         }
 

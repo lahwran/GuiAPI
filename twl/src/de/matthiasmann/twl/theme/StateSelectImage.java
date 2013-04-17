@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2009, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -33,24 +33,24 @@ import de.matthiasmann.twl.Border;
 import de.matthiasmann.twl.Color;
 import de.matthiasmann.twl.renderer.AnimationState;
 import de.matthiasmann.twl.renderer.Image;
-import de.matthiasmann.twl.utils.StateExpression;
+import de.matthiasmann.twl.utils.StateSelect;
 
 /**
  *
  * @author Matthias Mann
  */
-class StateSelectImage implements Image, HasBorder {
+public class StateSelectImage implements Image, HasBorder {
 
-    private final Image[] images;
-    private final StateExpression[] conditions;
-    private final Border border;
+    final Image[] images;
+    final StateSelect select;
+    final Border border;
 
-    StateSelectImage(Image[] images, StateExpression[] conditions, Border border) {
-        assert images.length >= conditions.length;
-        assert images.length <= conditions.length + 1;
+    public StateSelectImage(StateSelect select, Border border, Image ... images) {
+        assert images.length >= select.getNumExpressions();
+        assert images.length <= select.getNumExpressions() + 1;
         
         this.images = images;
-        this.conditions = conditions;
+        this.select = select;
         this.border = border;
     }
 
@@ -67,12 +67,7 @@ class StateSelectImage implements Image, HasBorder {
     }
 
     public void draw(AnimationState as, int x, int y, int width, int height) {
-        int idx = 0;
-        for(; idx<conditions.length ; idx++) {
-            if(conditions[idx].evaluate(as)) {
-                break;
-            }
-        }
+        int idx = select.evaluate(as);
         if(idx < images.length) {
             images[idx].draw(as, x, y, width, height);
         }
@@ -87,7 +82,7 @@ class StateSelectImage implements Image, HasBorder {
         for(int i=0 ; i<newImages.length ; i++) {
             newImages[i] = images[i].createTintedVersion(color);
         }
-        return new StateSelectImage(newImages, conditions, border);
+        return new StateSelectImage(select, border, newImages);
     }
 
 }

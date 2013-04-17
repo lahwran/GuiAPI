@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  * 
  * All rights reserved.
  * 
@@ -32,6 +32,8 @@ package de.matthiasmann.twl;
 import de.matthiasmann.twl.renderer.AnimationState.StateKey;
 import de.matthiasmann.twl.renderer.MouseCursor;
 import de.matthiasmann.twl.renderer.Image;
+import de.matthiasmann.twl.renderer.OffscreenRenderer;
+import de.matthiasmann.twl.renderer.OffscreenSurface;
 import de.matthiasmann.twl.renderer.Renderer;
 import de.matthiasmann.twl.theme.ThemeManager;
 import de.matthiasmann.twl.utils.TextUtil;
@@ -50,6 +52,13 @@ import java.util.logging.Logger;
 /**
  * Root of the TWL class hierarchy.
  *
+ * <p>When subclassing the following methods should be overridden to ensure
+ * correct layout behavior:</p><ul>
+ * <li>{@link #layout() }</li>
+ * <li>{@link #getPreferredInnerWidth() }</li>
+ * <li>{@link #getPreferredInnerHeight() }</li>
+ * </ul>
+ * 
  * <p>The following methods are events and can be overridden when needed:</p><ul>
  * <li>{@link #afterAddToGUI(de.matthiasmann.twl.GUI) }</li>
  * <li>{@link #allChildrenRemoved() }</li>
@@ -68,6 +77,11 @@ import java.util.logging.Logger;
  * <li>{@link #widgetDisabled() }</li>
  * </ul>
  * 
+ * <p>NOTE: The only thread safe methods of TWL are:</p><ul>
+ * <li>{@link #getGUI() }</li>
+ * <li>{@link GUI#invokeLater(java.lang.Runnable) }</li>
+ * </ul>
+ * 
  * @author Matthias Mann
  */
 public class Widget {
@@ -77,8 +91,6 @@ public class Widget {
     public static final StateKey STATE_HAS_FOCUSED_CHILD = StateKey.get("hasFocusedChild");
     public static final StateKey STATE_DISABLED = StateKey.get("disabled");
     
-    private static final int FOCUS_KEY = Event.KEY_TAB;
-
     private static final int LAYOUT_INVALID_LOCAL  = 1;
     private static final int LAYOUT_INVALID_GLOBAL = 3;
     
@@ -104,6 +116,8 @@ public class Widget {
     private TintAnimator tintAnimator;
     private PropertyChangeSupport propertyChangeSupport;
     volatile GUI guiInstance;
+    private OffscreenSurface offscreenSurface;
+    private RenderOffscreen renderOffscreen;
 
     private final AnimationState animState;
     private final boolean sharedAnimState;
@@ -118,6 +132,11 @@ public class Widget {
     private short maxWidth;
     private short maxHeight;
 
+    private short offscreenExtraLeft;
+    private short offscreenExtraTop;
+    private short offscreenExtraRight;
+    private short offscreenExtraBottom;
+    
     private ArrayList<Widget> children;
     private Widget lastChildMouseOver;
     private Widget focusChild;
@@ -136,14 +155,28 @@ public class Widget {
      */
     private static final ThreadLocal<Widget[]> focusTransferInfo = new ThreadLocal<Widget[]>();
     
+    /**
+     * Creates a Widget with it's own animation state
+     * 
+     * <p>The initial theme name is the lower case version of the simple class
+     * name of the concrete subclass - or in pseudo code:</p>
+     * <pre>{@code getClass().getSimpleName().toLowerCase() }</pre>
+     * 
+     * @see #setTheme(java.lang.String) 
+     */
     public Widget() {
         this(null, false);
     }
 
     /**
      * Creates a Widget with a shared animation state
+     * 
+     * <p>The initial theme name is the lower case version of the simple class
+     * name of the concrete subclass - or in pseudo code:</p>
+     * <pre>{@code getClass().getSimpleName().toLowerCase() }</pre>
      *
      * @param animState the animation state to share, can be null
+     * @see #setTheme(java.lang.String) 
      */
     public Widget(AnimationState animState) {
         this(animState, false);
@@ -151,9 +184,15 @@ public class Widget {
 
     /**
      * Creates a Widget with a shared or inherited animation state
+     * 
+     * <p>The initial theme name is the lower case version of the simple class
+     * name of the concrete subclass - or in pseudo code:</p>
+     * <pre>{@code getClass().getSimpleName().toLowerCase() }</pre>
      *
      * @param animState the animation state to share or inherit, can be null
-     * @param inherit true if the animation state should be inherited false for sharing
+     * @param inherit true if the animation state should be inherited, false for sharing
+     * @see AnimationState#AnimationState(de.matthiasmann.twl.AnimationState) 
+     * @see #setTheme(java.lang.String) 
      */
     public Widget(AnimationState animState, boolean inherit) {
         // determine the default theme name from the class name of this instance
@@ -671,6 +710,56 @@ public class Widget {
         }
     }
 
+    public short getOffscreenExtraTop() {
+        return offscreenExtraTop;
+    }
+
+    public short getOffscreenExtraLeft() {
+        return offscreenExtraLeft;
+    }
+
+    public short getOffscreenExtraBottom() {
+        return offscreenExtraBottom;
+    }
+
+    public short getOffscreenExtraRight() {
+        return offscreenExtraRight;
+    }
+    
+    /**
+     * Sets the offscreen rendering extra area for this widget.
+     * @param top the extra area on top
+     * @param left the extra area on left
+     * @param bottom the extra area on bottom
+     * @param right the extra area on right
+     * @throws IllegalArgumentException if any of the parameters is negative.
+     * @see #setRenderOffscreen(de.matthiasmann.twl.Widget.RenderOffscreen) 
+     */
+    public void setOffscreenExtra(int top, int left, int bottom, int right) {
+        if(top < 0 || left < 0 || bottom < 0 || right < 0) {
+            throw new IllegalArgumentException("negative offscreen extra size");
+        }
+        this.offscreenExtraTop = (short)top;
+        this.offscreenExtraLeft = (short)left;
+        this.offscreenExtraBottom = (short)bottom;
+        this.offscreenExtraRight = (short)right;
+    }
+    
+    /**
+     * Sets the offscreen rendering extra area for this widget.
+     * @param offscreenExtra the border object or null for no extra area
+     * @throws IllegalArgumentException if any of the values is negative.
+     * @see #setRenderOffscreen(de.matthiasmann.twl.Widget.RenderOffscreen) 
+     */
+    public void setOffscreenExtra(Border offscreenExtra) {
+        if(offscreenExtra == null) {
+            setOffscreenExtra(0, 0, 0, 0);
+        } else {
+            setOffscreenExtra(offscreenExtra.getBorderTop(), offscreenExtra.getBorderLeft(),
+                    offscreenExtra.getBorderBottom(), offscreenExtra.getBorderRight());
+        }
+    }
+    
     /**
      * Returns the minimum width of the widget.
      * Layout manager will allocate atleast the minimum width to a widget even
@@ -1028,6 +1117,10 @@ public class Widget {
 
     /**
      * Controls the handling of the FOCUS_KEY.
+     * <p>The default is true.</p>
+     * <p>When enabled the focus key (TAB) will cycle through all (indirect)
+     * children which can receive keyboard focus. The order is defined
+     * by {@link #getKeyboardFocusOrder() }.</p>
      * @param focusKeyEnabled if true this widget will handle the focus key.
      */
     public void setFocusKeyEnabled(boolean focusKeyEnabled) {
@@ -1068,6 +1161,19 @@ public class Widget {
      */
     public void setOverlay(Image overlay) {
         this.overlay = overlay;
+    }
+    
+    /**
+     * Returns the mouse cursor which should be used for the given
+     * mouse coordinates and modifiers.
+     * 
+     * The default implementation calls {@link #getMouseCursor() }
+     * 
+     * @param evt only {@link Event#getMouseX() }, {@link Event#getMouseY() } and {@link Event#getModifiers() } are valid.
+     * @return the mouse cursor or null when no mouse cursor is defined for this widget
+     */
+    public MouseCursor getMouseCursor(Event evt) {
+        return getMouseCursor();
     }
 
     public MouseCursor getMouseCursor() {
@@ -1143,8 +1249,8 @@ public class Widget {
         if(index < 0 || index > children.size()) {
             throw new IndexOutOfBoundsException();
         }
+        child.setParent(this);  // can throw exception - see PopupWindow
         children.add(index, child);
-        child.parent = this;
         GUI gui = getGUI();
         if(gui != null) {
             child.recursivelySetGUI(gui);
@@ -1261,6 +1367,10 @@ public class Widget {
                 children.get(i).destroy();
             }
         }
+        if(offscreenSurface != null) {
+            offscreenSurface.destroy();
+            offscreenSurface = null;
+        }
     }
 
     public boolean canAcceptKeyboardFocus() {
@@ -1284,7 +1394,7 @@ public class Widget {
      *
      * <p>Use with care - users don't expect focus changes while working with the UI</p>
      *
-     * <p>Focus transfer only works when the widget is added to the GUi tree.
+     * <p>Focus transfer only works when the widget is added to the GUI tree.
      * See {@link #getGUI()}.</p>
      * 
      * @return true if keyboard focus was transfered to this widget.
@@ -1381,6 +1491,23 @@ public class Widget {
         this.tintAnimator = tintAnimator;
     }
 
+    /**
+     * Returns the currently active offscreen rendering delegate or null if none was set
+     * @return the currently active offscreen rendering delegate or null if none was set
+     */
+    public RenderOffscreen getRenderOffscreen() {
+        return renderOffscreen;
+    }
+
+    /**
+     * Sets set offscreen rendering delegate. Can be null to disable offscreen rendering.
+     * @param renderOffscreen the offscreen rendering delegate.
+     */
+    public void setRenderOffscreen(RenderOffscreen renderOffscreen) {
+        this.renderOffscreen = renderOffscreen;
+    }
+
+    
     /**
      * Returns the currently set tooltip content.
      * @return the currently set tooltip content. Can be null.
@@ -1482,6 +1609,7 @@ public class Widget {
         applyThemeBackground(themeInfo);
         applyThemeOverlay(themeInfo);
         applyThemeBorder(themeInfo);
+        applyThemeOffscreenExtra(themeInfo);
         applyThemeMinSize(themeInfo);
         applyThemeMaxSize(themeInfo);
         applyThemeMouseCursor(themeInfo);
@@ -1500,6 +1628,10 @@ public class Widget {
 
     protected void applyThemeBorder(ThemeInfo themeInfo) {
         setBorderSize(themeInfo.getParameterValue("border", false, Border.class));
+    }
+
+    protected void applyThemeOffscreenExtra(ThemeInfo themeInfo) {
+        setOffscreenExtra(themeInfo.getParameterValue("offscreenExtra", false, Border.class));
     }
 
     protected void applyThemeMinSize(ThemeInfo themeInfo) {
@@ -1569,7 +1701,20 @@ public class Widget {
     protected void updateTooltip() {
         GUI gui = getGUI();
         if(gui != null) {
-            gui.requestToolTipUpdate(this);
+            gui.requestTooltipUpdate(this, false);
+        }
+    }
+
+    /**
+     * If this widget currently has an open tooltip then this tooltip is reset
+     * and the tooltip timer is restarted.
+     *
+     * @see #getTooltipContent()
+     */
+    protected void resetTooltip() {
+        GUI gui = getGUI();
+        if(gui != null) {
+            gui.requestTooltipUpdate(this, true);
         }
     }
 
@@ -1896,26 +2041,22 @@ public class Widget {
      * This method is called when this widget has been disabled,
      * either directly or one of it's parents.
      *
-     * The default implementation does nothing.
+     * <p>The default implementation does nothing.</p>
      */
     protected void widgetDisabled() {
     }
 
     /**
      * Paints this widget and it's children.
-     * A subclass should overwrite paintWidget() instead of this function.
+     * <p>A subclass should overwrite paintWidget() instead of this function.</p>
      * 
-     * The default implementation calls the following method in order:
-     *   paintBackground(gui)
-     *   paintWidget(gui)
-     *   paintChildren(gui)
-     *   paintOverlay(gui)
+     * <p>The default implementation calls the following method in order:</p><ol>
+     * <li>{@link #paintBackground(de.matthiasmann.twl.GUI)}</li>
+     * <li>{@link #paintWidget(de.matthiasmann.twl.GUI)}</li>
+     * <li>{@link #paintChildren(de.matthiasmann.twl.GUI)}</li>
+     * <li>{@link #paintOverlay(de.matthiasmann.twl.GUI)}</li></ol>
      *
      * @param gui the GUI object
-     * @see #paintBackground(de.matthiasmann.twl.GUI) 
-     * @see #paintWidget(de.matthiasmann.twl.GUI)
-     * @see #paintChildren(de.matthiasmann.twl.GUI)
-     * @see #paintOverlay(de.matthiasmann.twl.GUI)
      */
     protected void paint(GUI gui) {
         paintBackground(gui);
@@ -1925,9 +2066,14 @@ public class Widget {
     }
     
     /**
-     * Called by paint() after painting the background and before painting all children.
-     * This should be overwritten instead of paint() if normal themeable
-     * painting is desired by the subclass.
+     * Called by {@link #paint(de.matthiasmann.twl.GUI)} after painting the
+     * background and before painting all children.
+     * 
+     * <p>This should be overwritten instead of {@code paint} if normal themeable
+     * painting is desired by the subclass.</p>
+     * 
+     * <p>The default implementation does nothing.</p>
+     * 
      * @param gui the GUI object - it's the same as getGUI()
      */
     protected void paintWidget(GUI gui) {
@@ -1936,6 +2082,7 @@ public class Widget {
     /**
      * Paint the background image of this widget.
      * @param gui the GUI object
+     * @see #paint(de.matthiasmann.twl.GUI) 
      */
     protected void paintBackground(GUI gui) {
         Image bgImage = getBackground();
@@ -1947,6 +2094,7 @@ public class Widget {
     /**
      * Paints the overlay image of this widget.
      * @param gui the GUI object
+     * @see #paint(de.matthiasmann.twl.GUI) 
      */
     protected void paintOverlay(GUI gui) {
         Image ovImage = getOverlay();
@@ -1958,6 +2106,7 @@ public class Widget {
     /**
      * Paints all children in index order. Invisible children are skipped.
      * @param gui the GUI object
+     * @see #paint(de.matthiasmann.twl.GUI) 
      */
     protected void paintChildren(GUI gui) {
         if(children != null) {
@@ -1983,6 +2132,18 @@ public class Widget {
         child.drawWidget(gui);
     }
 
+    /**
+     * Called after all other widgets have been rendered when a drag operation is in progress.
+     * The mouse position can be outsife of this widget
+     * 
+     * @param gui the GUI object
+     * @param mouseX the current mouse X position
+     * @param mouseY the current mouse Y position
+     * @param modifier the current active modifiers - see {@link Event#getModifiers() }
+     */
+    protected void paintDragOverlay(GUI gui, int mouseX, int mouseY, int modifier) {
+    }
+    
     /**
      * Invalidates only the layout of this widget. Does not invalidate the layout of the parent.
      * Should only be used for things like scrolling.
@@ -2027,6 +2188,13 @@ public class Widget {
         }
     }
 
+    /**
+     * Returns all children of this widget in their focus travel order.
+     * <p>The returned list is only iterated and not stored.</p>
+     * <p>The default implementation just returns an unmodifable view of
+     * the internal children list.</p>
+     * @return a read only collection with all children in focus order.
+     */
     protected List<Widget> getKeyboardFocusOrder() {
         if(children == null) {
             return Collections.<Widget>emptyList();
@@ -2191,6 +2359,10 @@ public class Widget {
     // start of internal stuff
     //
     
+    void setParent(Widget parent) {
+        this.parent = parent;
+    }
+    
     private void unparentChild(Widget child) {
         GUI gui = getGUI();
         if(child.hasOpenPopup) { 
@@ -2245,6 +2417,7 @@ public class Widget {
     private void recursivelyClearGUI(GUI gui) {
         assert guiInstance == gui : "guiInstance must be null";
         guiInstance = null;
+        themeManager = null;
         if(children != null) {
             for(int i=children.size() ; i-->0 ;) {
                 children.get(i).recursivelyClearGUI(gui);
@@ -2366,7 +2539,15 @@ public class Widget {
         setOpenPopup(gui, false);
     }
     
+    final boolean isLayoutInvalid() {
+        return layoutInvalid != 0;
+    }
+    
     final void drawWidget(GUI gui) {
+        if(renderOffscreen != null) {
+            drawWidgetOffscreen(gui);
+            return;
+        }
         if(tintAnimator != null && tintAnimator.hasTint()) {
             drawWidgetTint(gui);
             return;
@@ -2396,12 +2577,55 @@ public class Widget {
     }
 
     private void drawWidgetClip(GUI gui) {
-        gui.clipEnter(posX, posY, width, height);
+        Renderer renderer = gui.getRenderer();
+        renderer.clipEnter(posX, posY, width, height);
         try {
             paint(gui);
         } finally {
-            gui.clipLeave();
+            renderer.clipLeave();
         }
+    }
+    
+    private void drawWidgetOffscreen(GUI gui) {
+        final RenderOffscreen ro = this.renderOffscreen;
+        final Renderer renderer = gui.getRenderer();
+        final OffscreenRenderer offscreenRenderer = renderer.getOffscreenRenderer();
+        if(offscreenRenderer != null) {
+            int extraTop = offscreenExtraTop;
+            int extraLeft = offscreenExtraLeft;
+            int extraRight = offscreenExtraRight;
+            int extraBottom = offscreenExtraBottom;
+            int[] effectExtra = ro.getEffectExtraArea(this);
+            if(effectExtra != null) {
+                extraTop += effectExtra[0];
+                extraLeft += effectExtra[1];
+                extraRight += effectExtra[2];
+                extraBottom += effectExtra[3];
+            }
+            if(offscreenSurface != null && !ro.needPainting(gui, parent, offscreenSurface)) {
+                ro.paintOffscreenSurface(gui, this, offscreenSurface);
+                return;
+            }
+            offscreenSurface = offscreenRenderer.startOffscreenRendering(
+                    this, offscreenSurface, posX-extraLeft, posY-extraTop,
+                    width+extraLeft+extraRight, height+extraTop+extraBottom);
+            if(offscreenSurface != null) {
+                try {
+                    if(tintAnimator != null && tintAnimator.hasTint()) {
+                        drawWidgetTint(gui);
+                    } else {
+                        paint(gui);
+                    }
+                } finally {
+                    offscreenRenderer.endOffscreenRendering();
+                }
+                ro.paintOffscreenSurface(gui, this, offscreenSurface);
+                return;
+            }
+        }
+        renderOffscreen = null;
+        ro.offscreenRenderingFailed(this);
+        drawWidget(gui);
     }
     
     Widget getWidgetUnderMouse() {
@@ -2538,8 +2762,17 @@ public class Widget {
         return sb.append(theme);
     }
 
+    Event translateMouseEvent(Event evt) {
+        if(renderOffscreen instanceof OffscreenMouseAdjustments) {
+            int[] newXY = ((OffscreenMouseAdjustments)renderOffscreen).adjustMouseCoordinates(this, evt);
+            evt = evt.createSubEvent(newXY[0], newXY[1]);
+        }
+        return evt;
+    }
+    
     Widget routeMouseEvent(Event evt) {
         assert !evt.isMouseDragEvent();
+        evt = translateMouseEvent(evt);
         if(children != null) {
             for(int i=children.size(); i-->0 ;) {
                 Widget child = children.get(i);
@@ -2560,10 +2793,6 @@ public class Widget {
                                     child.focusGainedCause = FocusGainedCause.MOUSE_BTNDOWN;
                                     if(child.isEnabled() && child.canAcceptKeyboardFocus()) {
                                         requestKeyboardFocus(child);
-                                    } else {
-                                        // when the clicked child doesn't want the focus
-                                        // then steal the focus from the current focused child
-                                        requestKeyboardFocus(null);
                                     }
                                 } finally {
                                     child.focusGainedCause = null;
@@ -2635,10 +2864,8 @@ public class Widget {
 
     private boolean handleKeyEvent(Event evt) {
         if(children != null) {
-            if(focusKeyEnabled && evt.isKeyEvent() && evt.getKeyCode() == FOCUS_KEY &&
-                    ((evt.getModifiers() & (Event.MODIFIER_CTRL|Event.MODIFIER_META|Event.MODIFIER_ALT)) == 0)) {
-                handleFocusKeyEvent(evt);
-                return true;
+            if(focusKeyEnabled && guiInstance != null) {
+                guiInstance.setFocusKeyWidget(this);
             }
             if(focusChild != null && focusChild.isVisible()) {
                 if(focusChild.handleEvent(evt)) {
@@ -2662,7 +2889,7 @@ public class Widget {
         return false;
     }
 
-    private void handleFocusKeyEvent(Event evt) {
+    void handleFocusKeyEvent(Event evt) {
         if(evt.isKeyPressedEvent()) {
             if((evt.getModifiers() & Event.MODIFIER_SHIFT) != 0) {
                 focusPrevChild();
@@ -2688,7 +2915,7 @@ public class Widget {
         }
         return true;
     }
-
+    
     void collectLayoutLoop(ArrayList<Widget> result) {
         if(layoutInvalid != 0) {
             result.add(this);
@@ -2709,5 +2936,74 @@ public class Widget {
 
     private Logger getLogger() {
         return Logger.getLogger(Widget.class.getName());
+    }
+    
+    /**
+     * When this interface is installed in a Widget then the widget tries to
+     * render into an offscreen surface.
+     */
+    public static interface RenderOffscreen {
+        /**
+         * This method is called after the widget has been sucessfully rendered
+         * into an offscreen surface.
+         * 
+         * @param gui the GUI instance
+         * @param widget the widget
+         * @param surface the resulting offscreen surface
+         */
+        public void paintOffscreenSurface(GUI gui, Widget widget, OffscreenSurface surface);
+        
+        /**
+         * Called when {@link OffscreenRenderer#startOffscreenRendering(de.matthiasmann.twl.renderer.OffscreenSurface, int, int, int, int) }
+         * failed.
+         * At the moment this method is called the RenderOffscreen instance has
+         * already been removed from the widget.
+         * @param widget the widget
+         */
+        public void offscreenRenderingFailed(Widget widget);
+        
+        /**
+         * Returns the extra area around the widget needed for the effect.
+         * <p>All returned values must be &gt;= 0.</p>
+         * 
+         * <p>The returned object can be reused on the next call and should not
+         * be stored by the caller.</p>
+         * 
+         * @param widget the widget
+         * @return the extra area in {@code top, left, right, bottom} order or null
+         */
+        public int[] getEffectExtraArea(Widget widget);
+        
+        /**
+         * Called before offscreen rendering is started.
+         * 
+         * <p>NOTE: when this function returns false none of the paint methods
+         * of that widget are called which might effect some widgets.</p>
+         * 
+         * <p>If you are unsure it is always safer to return true.</p>
+         * 
+         * @param gui the GUI instance
+         * @param widget the widget
+         * @param surface the previous offscreen surface - never null
+         * @return true if the surface needs to be updated, false if no new rendering should be done
+         */
+        public boolean needPainting(GUI gui, Widget widget, OffscreenSurface surface);
+    }
+    
+    public interface OffscreenMouseAdjustments extends RenderOffscreen {
+        
+        /**
+         * Called when mouse events are routed for the widget.
+         * 
+         * <p>All mouse coordinates in TWL are absolute.</p>
+         * 
+         * <p>The returned object can be reused on the next call and should not
+         * be stored by the caller.</p>
+         * 
+         * @param widget the widget
+         * @param evt the mouse event
+         * @return the new mouse coordinates in {@code x, y} order
+         */
+        public int[] adjustMouseCoordinates(Widget widget, Event evt);
     }
 }

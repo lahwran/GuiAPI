@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -30,13 +30,14 @@
 package de.matthiasmann.twl.model;
 
 import de.matthiasmann.twl.utils.CallbackSupport;
+import de.matthiasmann.twl.utils.WithRunnableCallback;
 
 /**
  * A class to manage callbacks.
  *
  * @author Matthias Mann
  */
-public class HasCallback {
+public class HasCallback implements WithRunnableCallback {
 
     private Runnable[] callbacks;
 
@@ -59,6 +60,14 @@ public class HasCallback {
         callbacks = CallbackSupport.removeCallbackFromList(callbacks, callback);
     }
 
+    /**
+     * Returns true when the callback list is not empty
+     * @return true when the callback list is not empty
+     */
+    public boolean hasCallbacks() {
+        return callbacks != null;
+    }
+    
     /**
      * Calls all registered callbacks.
      *

@@ -31,7 +31,7 @@ package de.matthiasmann.twl.theme;
 
 import de.matthiasmann.twl.DebugHook;
 import de.matthiasmann.twl.ThemeInfo;
-import java.util.HashMap;
+import de.matthiasmann.twl.utils.CascadedHashMap;
 
 /**
  * The ThemeInfo implementation
@@ -41,19 +41,19 @@ import java.util.HashMap;
 class ThemeInfoImpl extends ParameterMapImpl implements ThemeInfo {
 
     private final String name;
-    final HashMap<String, ThemeInfoImpl> children;
+    private final CascadedHashMap<String, ThemeInfoImpl> children;
     boolean maybeUsedFromWildcard;
     String wildcardImportPath;
 
     public ThemeInfoImpl(ThemeManager manager, String name, ThemeInfoImpl parent) {
         super(manager, parent);
         this.name = name;
-        this.children = new HashMap<String, ThemeInfoImpl>();
+        this.children = new CascadedHashMap<String, ThemeInfoImpl>();
     }
 
     void copy(ThemeInfoImpl src) {
-        children.putAll(src.children);
-        params.putAll(src.params);
+        super.copy(src);
+        children.collapseAndSetFallback(src.children);
         wildcardImportPath = src.wildcardImportPath;
     }
 
@@ -62,18 +62,30 @@ class ThemeInfoImpl extends ParameterMapImpl implements ThemeInfo {
     }
 
     public ThemeInfo getChildTheme(String theme) {
+        return getChildThemeImpl(theme, true);
+    }
+    
+    ThemeInfo getChildThemeImpl(String theme, boolean useFallback) {
         ThemeInfo info = children.get(theme);
         if(info == null) {
             if(wildcardImportPath != null) {
-                info = manager.resolveWildcard(wildcardImportPath, theme);
+                info = manager.resolveWildcard(wildcardImportPath, theme, useFallback);
             }
-            if(info == null) {
+            if(info == null && useFallback) {
                 DebugHook.getDebugHook().missingChildTheme(this, theme);
             }
         }
         return info;
     }
 
+    final ThemeInfoImpl getTheme(String name) {
+        return children.get(name);
+    }
+    
+    void putTheme(String name, ThemeInfoImpl child) {
+        children.put(name, child);
+    }
+    
     public String getThemePath() {
         return getThemePath(0).toString();
     }

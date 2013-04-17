@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -54,6 +54,22 @@ public class PropertySheet extends TreeTable {
         public void valueChanged();
         public void preDestroy();
         public void setSelected(boolean selected);
+        
+        /**
+         * Can be used to position the widget in a cell.
+         * <p>If this method returns false, the table will position the widget itself.</p>
+         *
+         * <p>This method is responsible to call setPosition and setSize on the
+         * widget or return false.</p>
+         *
+         * @param x the left edge of the cell
+         * @param y the top edge of the cell
+         * @param width the width of the cell
+         * @param height the height of the cell
+         * 
+         * @return true if the position was changed by this method.
+         */
+        public boolean positionWidget(int x, int y, int width, int height);
     }
 
     public interface PropertyEditorFactory<T> {
@@ -69,6 +85,7 @@ public class PropertySheet extends TreeTable {
         this(new Model());
     }
 
+    @SuppressWarnings("OverridableMethodCallInConstructor")
     private PropertySheet(Model model) {
         super(model);
         this.rootList = new SimplePropertyList("<root>");
@@ -162,6 +179,7 @@ public class PropertySheet extends TreeTable {
 
     static abstract class PropertyNode extends AbstractTreeTableNode implements Runnable, PSTreeTableNode {
         protected final Property<?> property;
+        @SuppressWarnings("LeakingThisInConstructor")
         public PropertyNode(TreeTableNode parent, Property<?> property) {
             super(parent);
             this.property = property;
@@ -256,6 +274,7 @@ public class PropertySheet extends TreeTable {
         public PropertyListCellRenderer() {
             bgRenderer = new Widget();
             textRenderer = new Label(bgRenderer.getAnimationState());
+            textRenderer.setAutoSize(false);
             bgRenderer.add(textRenderer);
             bgRenderer.setTheme(getTheme());
         }
@@ -279,7 +298,7 @@ public class PropertySheet extends TreeTable {
             textRenderer.setText((String)data);
         }
         @Override
-        protected void setSubRenderer(Object colData) {
+        protected void setSubRenderer(int row, int column, Object colData) {
         }
     }
 
@@ -308,8 +327,10 @@ public class PropertySheet extends TreeTable {
             return editor.getWidget();
         }
         public void positionWidget(Widget widget, int x, int y, int w, int h) {
-            widget.setPosition(x, y);
-            widget.setSize(w, h);
+            if(!editor.positionWidget(x, y, w, h)) {
+                widget.setPosition(x, y);
+                widget.setSize(w, h);
+            }
         }
     }
     
@@ -337,6 +358,7 @@ public class PropertySheet extends TreeTable {
         private final EditField editField;
         private final Property<String> property;
 
+        @SuppressWarnings("LeakingThisInConstructor")
         public StringEditor(Property<String> property) {
             this.property = property;
             this.editField = new EditField();
@@ -371,6 +393,9 @@ public class PropertySheet extends TreeTable {
             editField.setErrorMessage(null);
             editField.setReadOnly(property.isReadOnly());
         }
+        public boolean positionWidget(int x, int y, int width, int height) {
+            return false;
+        }
     }
     static class StringEditorFactory implements PropertyEditorFactory<String> {
         public PropertyEditor createEditor(Property<String> property) {
@@ -383,6 +408,7 @@ public class PropertySheet extends TreeTable {
         protected final Property<T> property;
         protected final ListModel<T> model;
 
+        @SuppressWarnings({"LeakingThisInConstructor", "OverridableMethodCallInConstructor"})
         public ComboBoxEditor(Property<T> property, ListModel<T> model) {
             this.property = property;
             this.comboBox = new ComboBox<T>(model);
@@ -422,6 +448,9 @@ public class PropertySheet extends TreeTable {
             }
             return -1;
         }
+        public boolean positionWidget(int x, int y, int width, int height) {
+            return false;
+        }
     }
     public static class ComboBoxEditorFactory<T> implements PropertyEditorFactory<T> {
         private final ModelForwarder modelForwarder;
@@ -439,6 +468,7 @@ public class PropertySheet extends TreeTable {
         }
         class ModelForwarder extends AbstractListModel<T> implements ListModel.ChangeListener {
             private ListModel<T> model;
+            @SuppressWarnings("OverridableMethodCallInConstructor")
             public ModelForwarder(ListModel<T> model) {
                 setModel(model);
             }

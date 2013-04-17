@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -34,7 +34,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
-import java.net.URLStreamHandler;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -57,13 +56,30 @@ import org.xmlpull.v1.XmlPullParserFactory;
 public class XMLParser implements Closeable {
 
     private static final Class<?>[] XPP_CLASS = {XmlPullParser.class};
+    private static boolean hasXMP1 = true;
     
     private final XmlPullParser xpp;
     private final String source;
     private final InputStream inputStream;
     private final BitSet unusedAttributes = new BitSet();
     private String loggerName = XMLParser.class.getName();
-
+    
+    public static XmlPullParser createParser() throws XmlPullParserException {
+        if(hasXMP1) {
+            try {
+                XmlPullParser xpp = new org.xmlpull.mxp1.MXParserCachingStrings();
+                xpp.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
+                // doesn't support FEATURE_VALIDATION
+                return xpp;
+            } catch(Throwable ex) {
+                hasXMP1 = false;
+                Logger.getLogger(XMLParser.class.getName()).log(
+                        Level.WARNING, "Failed direct instantation", ex);
+            }
+        }
+        return XPPF.newPullParser();
+    }
+    
     public XMLParser(XmlPullParser xpp, String source) {
         if(xpp == null) {
             throw new NullPointerException("xpp");
@@ -103,10 +119,7 @@ public class XMLParser implements Closeable {
         }
 
         if(xpp_ == null) {
-            XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
-            factory.setNamespaceAware(false);
-            factory.setValidating(false);
-            xpp_ = factory.newPullParser();
+            xpp_ = createParser();
             is = url.openStream();
             if(is == null) {
                 throw new FileNotFoundException(source);
@@ -199,6 +212,14 @@ public class XMLParser implements Closeable {
             return desc + " in " + source;
         }
         return desc;
+    }
+
+    public int getLineNumber() {
+        return xpp.getLineNumber();
+    }
+
+    public int getColumnNumber() {
+        return xpp.getColumnNumber();
     }
 
     public String getName() {
@@ -320,6 +341,10 @@ public class XMLParser implements Closeable {
         unusedAttributes.clear();
     }
     
+    public boolean isAttributeUnused(int idx) {
+        return unusedAttributes.get(idx);
+    }
+    
     public XmlPullParserException error(String msg) {
         return new XmlPullParserException(msg, xpp, null);
     }
@@ -345,7 +370,7 @@ public class XMLParser implements Closeable {
                 + "\" for enum class " + enumClazz, xpp, null);
     }
 
-    protected boolean parseBool(String value) throws XmlPullParserException {
+    public boolean parseBool(String value) throws XmlPullParserException {
         if("true".equals(value)) {
             return true;
         } else if("false".equals(value)) {
@@ -400,4 +425,32 @@ public class XMLParser implements Closeable {
         return Logger.getLogger(loggerName);
     }
 
+    static class XPPF {
+        private static final XmlPullParserFactory xppf;
+        private static       XmlPullParserException xppfex;
+
+        static {
+            XmlPullParserFactory f = null;
+            try {
+                f = XmlPullParserFactory.newInstance();
+                f.setNamespaceAware(false);
+                f.setValidating(false);
+            } catch(XmlPullParserException ex) {
+                 Logger.getLogger(XMLParser.class.getName()).log(
+                         Level.SEVERE, "Unable to construct XmlPullParserFactory", ex);
+                 xppfex = ex;
+            }
+            xppf = f;
+        }
+
+        static XmlPullParser newPullParser() throws XmlPullParserException {
+            if(xppf != null) {
+                return xppf.newPullParser();
+            }
+            throw xppfex;
+        }
+
+        private XPPF() {
+        }
+    }
 }

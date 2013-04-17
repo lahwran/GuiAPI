@@ -1,1 +1,40 @@
+
+# eclipse
+.project
+.classpath
+.settings
+
+# eclipse and mcp use this
 bin/
+
+# all of mcp
+CHANGELOG
+cleanup.bat
+cleanup.sh
+conf/
+decompile.bat
+decompile.sh
+docs/
+eclipse/
+jars/
+lib/
+LICENSE
+logs/
+recompile.bat
+recompile.sh
+reobf/
+reobfuscate.bat
+reobfuscate.sh
+runtime/
+startclient.bat
+startclient.sh
+startserver.bat
+startserver.sh
+temp/
+updatemcp.bat
+updatemcp.sh
+updatemd5.bat
+updatemd5.sh
+updatenames.bat
+updatenames.sh
+

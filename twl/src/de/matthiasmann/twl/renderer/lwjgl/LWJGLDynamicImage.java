@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -48,10 +48,11 @@ public class LWJGLDynamicImage extends TextureAreaBase implements DynamicImage {
     private final Color tintColor;
     private int id;
     
-    public LWJGLDynamicImage(LWJGLRenderer renderer, int target, int id, int width, int height, Color tintColor) {
+    public LWJGLDynamicImage(LWJGLRenderer renderer, int target, int id,
+            int width, int height, int texWidth, int texHeight, Color tintColor) {
         super(0, 0, width, height,
-                (target == GL11.GL_TEXTURE_2D) ? width : 1f,
-                (target == GL11.GL_TEXTURE_2D) ? height : 1f);
+                (target == GL11.GL_TEXTURE_2D) ? texWidth : 1f,
+                (target == GL11.GL_TEXTURE_2D) ? texHeight : 1f);
         
         this.renderer = renderer;
         this.tintColor = tintColor;
@@ -59,18 +60,34 @@ public class LWJGLDynamicImage extends TextureAreaBase implements DynamicImage {
         this.id = id;
     }
 
+    LWJGLDynamicImage(LWJGLDynamicImage src, Color tintColor) {
+        super(src);
+        this.renderer = src.renderer;
+        this.tintColor = tintColor;
+        this.target = src.target;
+        this.id = src.id;
+    }
+
     public void destroy() {
         if(id != 0) {
-            renderer.glDeleteTexture(id);
+            GL11.glDeleteTextures(id);
             renderer.dynamicImages.remove(this);
         }
     }
 
     public void update(ByteBuffer data, Format format) {
-        update(0, 0, width, height, data, format);
+        update(0, 0, width, height, data, width*4, format);
+    }
+    
+    public void update(ByteBuffer data, int stride, Format format) {
+        update(0, 0, width, height, data, stride, format);
     }
 
     public void update(int xoffset, int yoffset, int width, int height, ByteBuffer data, Format format) {
+        update(xoffset, yoffset, width, height, data, width*4, format);
+    }
+    
+    public void update(int xoffset, int yoffset, int width, int height, ByteBuffer data, int stride, Format format) {
         if(xoffset < 0 || yoffset < 0 || getWidth() <= 0 || getHeight() <= 0) {
             throw new IllegalArgumentException("Negative offsets or size <= 0");
         }
@@ -86,12 +103,20 @@ public class LWJGLDynamicImage extends TextureAreaBase implements DynamicImage {
         if(format == null) {
             throw new NullPointerException("format");
         }
-        if(data.remaining() < width*height*4) {
+        if(stride < 0 || (stride & 3) != 0) {
+            throw new IllegalArgumentException("stride");
+        }
+        if(stride < width*4) {
+            throw new IllegalArgumentException("stride too short for width");
+        }
+        if(data.remaining() < stride*(height-1)+width*4) {
             throw new IllegalArgumentException("Not enough data remaining in the buffer");
         }
         int glFormat = (format == Format.RGBA) ? GL11.GL_RGBA : GL12.GL_BGRA;
         bind();
+        GL11.glPixelStorei(GL11.GL_UNPACK_ROW_LENGTH, stride/4);
         GL11.glTexSubImage2D(target, 0, xoffset, yoffset, width, height, glFormat, GL11.GL_UNSIGNED_BYTE, data);
+        GL11.glPixelStorei(GL11.GL_UNPACK_ROW_LENGTH, 0);
     }
 
     public Image createTintedVersion(Color color) {
@@ -102,7 +127,7 @@ public class LWJGLDynamicImage extends TextureAreaBase implements DynamicImage {
         if(newTintColor.equals(tintColor)) {
             return this;
         }
-        return new LWJGLDynamicImage(renderer, target, id, getWidth(), getHeight(), newTintColor);
+        return new LWJGLDynamicImage(this, newTintColor);
     }
 
     public void draw(AnimationState as, int x, int y) {

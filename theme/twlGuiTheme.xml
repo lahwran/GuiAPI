@@ -33,11 +33,11 @@
         <area name="button-border-hover" xywh="0,86,200,20" splity="T2,B3" splitx="L2,R2" nocenter="true"/>
         <area name="button-bg-hover" xywh="2,88,196,15" tiled="true"/>
         <select name="button-bg">
-            <alias ref="button-bg-hover" if="hover"/>
+            <alias ref="button-bg-hover" if="hover + !disabled"/>
             <alias ref="button-bg-normal"/>
         </select>
         <select name="button-border-nonpressed">
-            <alias ref="button-border-hover" if="hover"/>
+            <alias ref="button-border-hover" if="hover + !disabled"/>
             <alias ref="button-border-normal"/>
         </select>
         <select name="button-border">
@@ -59,6 +59,8 @@
             <alias ref="button-bg-normal"/>
             <alias ref="button-border-normal"/>
         </composed>
+        <alias name="progress" ref="button-bg-normal" sizeOverwriteH="0"/>
+        <area name="progress-white" xywh="0,106,196,15" tiled="true"/>
     </images>
     <images file="scrollwindow.png">
         <area name="scrollwindow_tint" xywh="75,80,1,1"/>
@@ -79,13 +81,134 @@
         <param name="inputMap"><inputMap>-defaultInputMap</inputMap></param>
         <theme name="" ref="*"/>
     </theme>
+    <theme name="*" ref="-defaults"/>
+
 
     <theme name="label" ref="-defaults" allowWildcard="true">
+        <param name="border"><border>2</border></param>
     </theme>
     <theme name="button" ref="-defaults" allowWildcard="true">
         <param name="background"><image>button</image></param>
         <param name="textAlignment"><enum type="alignment">center</enum></param>
+        <param name="border"><border>4</border></param>
     </theme>
+    <theme name="tablesearchwindow" ref="-defaults">
+        <param name="border"><border>10</border></param>
+        <theme name="dialoglayout" ref="dialoglayout">
+            <theme name="label" ref="label"/>
+            <theme name="editfield" ref="editfield">
+                <param name="columns"><int>20</int></param>
+            </theme>
+        </theme>
+    </theme>
+    <theme name="table" ref="-defaults" allowWildcard="true">
+        <param name="rowHeight"><int>font.lineHeight + 6</int></param>
+        <theme name="TreeLeafCellRenderer" ref="-treecellrenderer"/>
+        <theme name="TreeNodeCellRenderer" ref="-treecellrenderer"/>
+        <theme name="PropertyEditorCellRender" ref="-treecellrenderer"/>
+        <theme name="PropertyListCellRenderer" ref="-treecellrenderer">
+            <param name=""><image>propertysheet.sublist.*</image></param>
+            <theme name="label" ref="label"/>
+        </theme>
+        <theme name="spanrenderer" ref="-defaults"/>
+        <theme name="treeButton" ref="-defaults">
+            <param name=""><image>treetable.treebutton.*</image></param>
+        </theme>
+        <theme name="columnHeader" ref="button">
+            <param name=""><image>columnHeader.*</image></param>
+        </theme>
+        <param name="columnHeaderWidth"><int>256</int></param>
+        <param name="columnHeaderHeight"><int>20</int></param>
+        <param name="columnDividerDragableDistance"><int>3</int></param>
+        <param name="columnDivider"><image>none</image></param>
+        <param name="columnWidths"><map/></param>
+        <param name="ensureColumnHeaderMinWidth"><bool>true</bool></param>
+        <param name="row"><image>table.row.*</image></param>
+        <param name="inputMap"><inputMapDef ref="-defaultInputMap">
+                <action name="toggleSelectionOnLeadRow">ctrl SPACE</action>
+                <action name="selectNextRow">DOWN</action>
+                <action name="selectPreviousRow">UP</action>
+                <action name="selectNextPage">NEXT</action>
+                <action name="selectPreviousPage">PRIOR</action>
+                <action name="selectFirstRow">HOME</action>
+                <action name="selectLastRow">END</action>
+                <action name="extendSelectionToNextRow">shift DOWN</action>
+                <action name="extendSelectionToPreviousRow">shift UP</action>
+                <action name="extendSelectionToNextPage">shift NEXT</action>
+                <action name="extendSelectionToPreviousPage">shift PRIOR</action>
+                <action name="extendSelectionToFirstRow">shift HOME</action>
+                <action name="extendSelectionToLastRow">shift END</action>
+                <action name="moveLeadToNextRow">ctrl DOWN</action>
+                <action name="moveLeadToPreviousRow">ctrl UP</action>
+                <action name="moveLeadToNextPage">ctrl NEXT</action>
+                <action name="moveLeadToPreviousPage">ctrl PRIOR</action>
+                <action name="moveLeadToFirstRow">ctrl HOME</action>
+                <action name="moveLeadToLastRow">ctrl END</action>
+                <action name="expandLeadRow">ADD</action>
+                <action name="collapseLeadRow">SUBTRACT</action>
+            </inputMapDef></param>
+        <theme name="ComboBoxCellRenderer">
+            <param name="comboBoxHeight"><int>20</int></param>
+        </theme>
+        <theme name="EditFieldCellRenderer">
+            <param name="editFieldHeight"><int>20</int></param>
+        </theme>
+        <theme name="stringcellrenderer" ref="-defaults">
+            <param name="border"><border>0,3,0,0</border></param>
+            <param name="font"><font>normal</font></param>
+        </theme>
+    </theme>
+    <theme name="treepathdisplay" ref="-defaults" allowWildcard="true">
+        <theme name="pathbox" ref="-defaults">
+            <param name="spacing"><int>0</int></param>
+            <theme name="node" ref="label">
+                <param name=""><image>treepathdisplay.node.*</image></param>
+            </theme>
+            <theme name="separator" ref="label">
+                <param name="border"><border>2,0</border></param>
+            </theme>
+            <param name="minHeight"><int>node.font.lineHeight + 4</int></param>
+            <param name="alignment"><enum type="alignment">center</enum></param>
+        </theme>
+        <theme name="patheditfield" ref="editfield"/>
+    </theme>
+    <theme name="treecombobox" ref="-defaults" allowWildcard="true">
+        <param name="background"><image>button-border-normal</image></param>
+        <param name="popupThemeName"><string>treecomboboxPopup</string></param>
+        <theme name="display" ref="treepathdisplay">
+            <param name=""><image>combobox.display.*</image></param>
+            <param name="minWidth"><int>50</int></param>
+            <theme name="pathbox" merge="true">
+                <param name="border"><border>3</border></param>
+                <theme name="node" merge="true">
+                </theme>
+                <theme name="separator" merge="true">
+                </theme>
+            </theme>
+        </theme>
+        <theme name="button" ref="-defaults">
+            <param name=""><image>combobox.button.*</image></param>
+            <param name="minWidth"><int>18</int></param>
+        </theme>
+    </theme>
+
+    <theme name="treecomboboxPopup" ref="-defaults">
+        <param name="background"><image>button-border-normal</image></param>
+        <param name="border"><border>2</border></param>
+        <theme name="scrollpane" ref="scrollpane">
+            <theme name="treetable" ref="table">
+                <param name="background"><image>none</image></param>
+                <param name="border"><border>0</border></param>
+                <param name="columnHeaderHeight"><int>0</int></param>
+            </theme>
+        </theme>
+        <param name="minHeight"><int>300</int></param>
+    </theme>
+
+
+
+
+
     <theme name="togglebutton" ref="button" allowWildcard="true"/>
     <theme name="editfield">
         <theme name="renderer" ref="label">
@@ -152,6 +275,8 @@
         <theme name="vscrollbar" ref="vscrollbar"/>
         <param name="scrollbarsAlwaysVisible"><bool>false</bool></param>
         <param name="hasDragButton"><bool>false</bool></param>
+        <param name="autoScrollArea"><int>0</int></param>
+        <param name="autoScrollSpeed"><int>0</int></param>
     </theme>
     <theme name="scrollbutton-notch" ref="-defaults">
         <param name="background"><image>scrollbar</image></param>
@@ -189,35 +314,132 @@
     </theme>
     <theme name="textarea" ref="-defaults" allowWildcard="true">
         <param name="background"><image>background</image></param>
+        <param name="classes"><map>
+            </map></param>
+    
+        <param name="images">
+            <map>
+            </map>
+        </param>
+        <param name="border"><border>4</border></param>
+        <param name="fonts"><map>
+                <param name="default"><font>normal</font></param>
+            </map></param>
+        <param name="font"><font>normal</font></param>
     </theme>
+    <theme name="-treecellrenderer" ref="-defaults">
+        <param name="treeIndent"><int>15</int></param>
+        <param name="treeButtonSize"><dimension>14,11</dimension></param>
+    </theme>
+
     <theme name="colorselector" ref="-defaults" allowWildcard="true">
         <theme name="colorarea2d" ref="-defaults">
             <param name="cursor"><image>none</image></param>
             <param name="background"><image>button</image></param>
+            <param name="minWidth"><int>64</int></param>
+            <param name="minHeight"><int>64</int></param>
+            <param name="border"><border>2</border></param>
         </theme>
         <theme name="colorarea1d" ref="-defaults">
             <param name="cursor"><image>none</image></param>
             <param name="background"><image>button</image></param>
+            <param name="minHeight"><int>64</int></param>
+            <param name="minWidth"><int>32</int></param>
         </theme>
-        <param name="smallGap"><dimension>0,0</dimension></param>
-        <param name="mediumGap"><dimension>0,0</dimension></param>
-        <param name="largeGap"><dimension>0,0</dimension></param>
-        <param name="defaultGap"><dimension>15,0</dimension></param>
+        <param name="smallGap"><dimension>8,8</dimension></param>
+        <param name="mediumGap"><dimension>10,10</dimension></param>
+        <param name="largeGap"><dimension>15,15</dimension></param>
+        <param name="defaultGap"><dimension>5,5</dimension></param>
         <param name="namedGaps">
             <map>
             </map>
         </param>
         <theme name="preview" ref="-defaults">
-            <theme name="colorarea" ref="-defaults"/>
+            <theme name="colorarea" ref="-defaults">
+                <param name="background"><image>progress-white</image></param>
+            </theme>
+            <param name="minWidth"><int>32</int></param>
+            <param name="minHeight"><int>64</int></param>
+            <param name="border"><border>2</border></param>
         </theme>
-        <theme name="hexColorEditField" ref="editfield"/>
+        <theme name="hexColorEditField" ref="editfield">
+            <param name="tooltip"><string>Current color in ARGB hex format</string></param>
+        </theme>
         <theme name="previewLabel" ref="label"/>
     </theme>
     <theme name="tooltipwindow" ref="-defaults">
         <param name="fadeInTime"><int>50</int></param>
     </theme>
     <theme name="listbox" ref="-defaults">
-        <theme name="display" ref="-defaults"/>
+        <theme name="display" ref="-defaults">
+            <param name="background"><image>button</image></param>
+            <param name="border"><border>4</border></param>
+        </theme>
+        <param name="cellHeight"><int>font.lineHeight + 10</int></param>
+        <param name="cellWidth"><constant>SINGLE_COLUMN</constant></param>
+        <param name="rowMajor"><bool>true</bool></param>
+        <param name="fixedCellWidth"><bool>false</bool></param>
+        <param name="fixedCellHeight"><bool>false</bool></param>
+        <param name="maxHeight"><int>8000</int></param>
+        <param name="maxWidth"><int>8000</int></param>
+        <param name="minDisplayedRows"><int>1</int></param>
+        <theme name="vscrollbar" ref="vscrollbar"/>
+    
+    
+    
+    
+    
+    
+    
+    </theme>
+    <theme name="listbox-noback" ref="listbox">
+        <theme name="display" ref="-defaults">
+            <param name="border"><border>4</border></param>
+        </theme>
+    </theme>
+    <theme name="splitpane" ref="-defaults" allowWildcard="true">
+        <theme name="splitterHorizontal" ref="button">
+        </theme>
+        <theme name="splitterVertical" ref="button">
+        </theme>
+    </theme>
+    <theme name="dialoglayout" ref="-defaults" allowWildcard="true">
+        <param name="defaultGap"><dimension>5,5</dimension></param>
+        <param name="smallGap"><dimension>8,8</dimension></param>
+        <param name="mediumGap"><dimension>10,10</dimension></param>
+        <param name="largeGap"><dimension>15,15</dimension></param>
+        <param name="namedGaps"><map/></param>
+    </theme>
+
+
+    <theme name="progressbar" ref="-defaults">
+        <param name="background"><image>background</image></param>
+        <param name="progressImage"><image>progress</image></param>
+        <param name="overlay"><image>button-border</image></param>
+        <param name="textAlignment"><enum type="alignment">CENTER</enum></param>
+    </theme>
+    <theme name="progressbar-white" ref="-defaults">
+        <param name="background"><image>background</image></param>
+        <param name="progressImage"><image>progress-white</image></param>
+        <param name="overlay"><image>button-border</image></param>
+        <param name="textAlignment"><enum type="alignment">CENTER</enum></param>
+    </theme>
+    <theme name="progressbar-noback" ref="-defaults">
+        <param name="background"><image>none</image></param>
+        <param name="progressImage"><image>progress</image></param>
+        <param name="overlay"><image>button-border</image></param>
+        <param name="textAlignment"><enum type="alignment">CENTER</enum></param>
+    </theme>
+    <theme name="progressbar-white-noback" ref="-defaults">
+        <param name="background"><image>none</image></param>
+        <param name="progressImage"><image>progress-white</image></param>
+        <param name="overlay"><image>button-border</image></param>
+        <param name="textAlignment"><enum type="alignment">CENTER</enum></param>
+    </theme>
+    <theme name="combobox" ref="-defaults">
+        <theme name="display" ref="-defaults">
+            <param name="background"><image>background</image></param>
+        </theme>
     </theme>
 
 </themes>

@@ -368,7 +368,7 @@ public class FileSelector extends DialogLayout {
             currentFolder.setSeparator(fsm.getSeparator());
             autoCompletion.setDataSource(new FileSystemAutoCompletionDataSource(fsm,
                     FileSystemTreeModel.FolderFilter.instance));
-            if(folderMRU.getNumEntries() == 0 || !gotoFolderFromMRU(0) || !goHome()) {
+            if(!gotoFolderFromMRU(0) && !goHome()) {
                 setCurrentNode(model);
             }
         }
@@ -404,6 +404,23 @@ public class FileSelector extends DialogLayout {
     public void setAllowFolderSelection(boolean allowFolderSelection) {
         this.allowFolderSelection = allowFolderSelection;
         selectionChanged();
+    }
+    
+    public boolean getAllowHorizontalScrolling() {
+        return fileTableSP.getFixed() != ScrollPane.Fixed.HORIZONTAL;
+    }
+    
+    /**
+     * Controls if the file table allows horizontal scrolling or not.
+     * 
+     * Default is true.
+     * 
+     * @param allowHorizontalScrolling true if horizontal scrolling is allowed
+     */
+    public void setAllowHorizontalScrolling(boolean allowHorizontalScrolling) {
+        fileTableSP.setFixed(allowHorizontalScrolling
+                ? ScrollPane.Fixed.NONE
+                : ScrollPane.Fixed.HORIZONTAL);
     }
 
     public void addCallback(Callback callback) {
@@ -467,6 +484,10 @@ public class FileSelector extends DialogLayout {
             return fileTable.setSelection(file);
         }
         return false;
+    }
+    
+    public void clearSelection() {
+        fileTable.clearSelection();
     }
 
     /**
@@ -759,6 +780,9 @@ public class FileSelector extends DialogLayout {
     }
 
     boolean gotoFolderFromMRU(int idx) {
+        if(idx >= folderMRU.getNumEntries()) {
+            return false;
+        }
         String path = folderMRU.getEntry(idx);
         try {
             TreeTableNode node = resolvePath(path);

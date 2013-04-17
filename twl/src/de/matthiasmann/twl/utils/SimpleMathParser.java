@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2009, Matthias Mann
+ * Copyright (c) 2008-2011, Matthias Mann
  *
  * All rights reserved.
  *
@@ -47,6 +47,7 @@ public class SimpleMathParser {
         public void mul();
         public void div();
         public void callFunction(String name, int args);
+        public void negate();
     }
 
     final String str;
@@ -159,7 +160,11 @@ public class SimpleMathParser {
                 }
                 ch = peek();
             }
-        } else if(ch == '.' || ch == '-' || ch == '+' || Character.isDigit((char)ch)) {
+        } else if(ch == '-') {
+            pos++;
+            parseIdentOrConst();
+            interpreter.negate();
+        } else if(ch == '.' || ch == '+' || Character.isDigit((char)ch)) {
             parseConst();
         } else if(ch == '(') {
             pos++;
@@ -197,10 +202,6 @@ public class SimpleMathParser {
             // skip
             start = ++pos;
             break;
-        case '-':
-            // include
-            pos++;
-            break;
         case '0':
             if(pos+1 < len && str.charAt(pos+1) == 'x') {
                 pos += 2;
@@ -234,10 +235,10 @@ public class SimpleMathParser {
             pos++;
         }
         if(pos - start > 8) {
-            throw new ParseException("number to large at " + pos, pos);
+            throw new ParseException("Number to large at " + pos, pos);
         }
         if(pos == start) {
-            unexpected(peek());
+            unexpected((pos < len) ? str.charAt(pos) : -1);
         }
         interpreter.loadConst((int)Long.parseLong(str.substring(start, pos), 16));
     }

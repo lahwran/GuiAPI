@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2009, Matthias Mann
+ * Copyright (c) 2008-2011, Matthias Mann
  *
  * All rights reserved.
  *
@@ -29,17 +29,17 @@
  */
 package de.matthiasmann.twl.model;
 
+import de.matthiasmann.twl.utils.WithRunnableCallback;
+
 /**
  * A string data model.
  * 
  * @author Matthias Mann
  */
-public interface StringModel {
+public interface StringModel extends WithRunnableCallback {
+    
     String getValue();
 
     void setValue(String value);
-
-    public void addCallback(Runnable callback);
-
-    public void removeCallback(Runnable callback);
+    
 }

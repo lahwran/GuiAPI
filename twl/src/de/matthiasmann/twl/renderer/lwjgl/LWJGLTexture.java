@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -108,40 +108,53 @@ public class LWJGLTexture implements Texture, Resource {
         if(width <= 0 || height <= 0) {
             throw new IllegalArgumentException("size <= 0");
         }
-
-        id = renderer.glGenTexture();
+        Util.checkGLError();
+        id = GL11.glGenTextures();
+        Util.checkGLError();
         if(id == 0) {
             throw new OpenGLException("failed to allocate texture ID");
         }
-
+        Util.checkGLError();
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, id);
+        Util.checkGLError();
         GL11.glPixelStorei(GL11.GL_UNPACK_ROW_LENGTH, 0);
+        Util.checkGLError();
         GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
-
+        Util.checkGLError();
         if(GLContext.getCapabilities().OpenGL12) {
+        	Util.checkGLError();
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE);
+            Util.checkGLError();
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE);
         } else {
+        	Util.checkGLError();
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL11.GL_CLAMP);
+            Util.checkGLError();
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL11.GL_CLAMP);
         }
-
+        Util.checkGLError();
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, filter.glValue);
+        Util.checkGLError();
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, filter.glValue);
-
+        Util.checkGLError();
         this.texWidth = roundUpPOT(width);
+        Util.checkGLError();
         this.texHeight = roundUpPOT(height);
-
+        Util.checkGLError();
         if(texWidth != width || texHeight != height) {
+        	Util.checkGLError();
             GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0,
                     fmt.glInternalFormat, texWidth, texHeight,
                     0, fmt.glFormat, GL11.GL_UNSIGNED_BYTE,
                     (ByteBuffer)null);
-            Util.checkGLError();
-            GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, 0,
-                    0, 0, width, height, fmt.glFormat,
-                    GL11.GL_UNSIGNED_BYTE, buf);
+            if(buf != null) {
+                Util.checkGLError();
+                GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, 0,
+                        0, 0, width, height, fmt.glFormat,
+                        GL11.GL_UNSIGNED_BYTE, buf);
+            }
         } else {
+        	Util.checkGLError();
             GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0,
                     fmt.glInternalFormat, texWidth, texHeight,
                     0, fmt.glFormat, GL11.GL_UNSIGNED_BYTE, buf);
@@ -159,7 +172,7 @@ public class LWJGLTexture implements Texture, Resource {
         if(id != 0) {
             // make sure that our texture is not bound when we try to delete it
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
-            renderer.glDeleteTexture(id);
+            GL11.glDeleteTextures(id);
             id = 0;
         }
         if(cursors != null) {
@@ -186,7 +199,7 @@ public class LWJGLTexture implements Texture, Resource {
         return texHeight;
     }
 
-    boolean bind(Color color) {
+    public boolean bind(Color color) {
         if(id != 0) {
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, id);
             renderer.tintStack.setColor(color);
@@ -195,7 +208,7 @@ public class LWJGLTexture implements Texture, Resource {
         return false;
     }
 
-    boolean bind() {
+    public boolean bind() {
         if(id != 0) {
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, id);
             return true;
@@ -203,7 +216,7 @@ public class LWJGLTexture implements Texture, Resource {
         return false;
     }
 
-    public Image getImage(int x, int y, int width, int height, Color tintColor, boolean tiled) {
+    public Image getImage(int x, int y, int width, int height, Color tintColor, boolean tiled, Rotation rotation) {
         if(x < 0 || x >= getWidth()) {
             throw new IllegalArgumentException("x");
         }
@@ -216,10 +229,13 @@ public class LWJGLTexture implements Texture, Resource {
         if(y + Math.abs(height) > getHeight()) {
             throw new IllegalArgumentException("height");
         }
-        if(tiled && (width <= 0 || height <= 0)) {
-            throw new IllegalArgumentException("Tiled rendering requires positive width & height");
+        if(rotation != Rotation.NONE || (tiled && (width < 0 || height < 0))) {
+            return new TextureAreaRotated(this, x, y, width, height, tintColor, tiled, rotation);
+        } else if(tiled) {
+            return new TextureAreaTiled(this, x, y, width, height, tintColor);
+        } else {
+            return new TextureArea(this, x, y, width, height, tintColor);
         }
-        return new TextureArea(this, x, y, width, height, tintColor, tiled);
     }
 
     public MouseCursor createCursor(int x, int y, int width, int height, int hotSpotX, int hotSpotY, Image imageRef) {

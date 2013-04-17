@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -150,6 +150,15 @@ public class MenuManager extends PopupWindow {
             gui.resendLastMouseMove();
         }
     }
+    
+    /**
+     * Returns the popup widget for the specified menu
+     * @param menu the menu for which to return the popup
+     * @return the popup widget or null if not open
+     */
+    public Widget getPopupForMenu(Menu menu) {
+        return popups.get(menu);
+    }
 
     @Override
     protected void afterAddToGUI(GUI gui) {
@@ -212,7 +221,7 @@ public class MenuManager extends PopupWindow {
     }
 
     void popupTimer() {
-        if(lastMouseOverWidget instanceof Menu.SubMenuBtn) {
+        if((lastMouseOverWidget instanceof Menu.SubMenuBtn) && lastMouseOverWidget.isEnabled()) {
             ((Menu.SubMenuBtn)lastMouseOverWidget).run();
         } else if(lastMouseOverWidget != this) {
             int level = 0;

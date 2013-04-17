@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2011, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -33,6 +33,7 @@ import de.matthiasmann.twl.renderer.AnimationState;
 import de.matthiasmann.twl.renderer.AnimationState.StateKey;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.BitSet;
 
 /**
  * A class to handle animation state expression
@@ -73,7 +74,7 @@ public abstract class StateExpression {
 
             StateExpression child = null;
             if(Character.isJavaIdentifierStart(ch)) {
-                child = new Check(si.getIdent());
+                child = new Check(StateKey.get(si.getIdent()));
             } else if(ch == '(') {
                 si.pos++;
                 child = parse(si);
@@ -113,18 +114,11 @@ public abstract class StateExpression {
         if(children.size() == 1) {
             return children.get(0);
         }
-
-        StateExpression[] childArray =
-                children.toArray(new StateExpression[children.size()]);
         
-        if(kind == '^') {
-            return new Xor(childArray);
-        } else {
-            return new AndOr(kind, childArray);
-        }
+        return new Logic(kind, children.toArray(new StateExpression[children.size()]));
     }
 
-    static class StringIterator {
+    private static class StringIterator {
         final String str;
         int pos;
 
@@ -175,53 +169,64 @@ public abstract class StateExpression {
         }
     }
 
-    protected boolean negate;
-
-    static class AndOr extends StateExpression {
-        private final StateExpression[] children;
-        private final boolean kind;
-        public AndOr(char kind, StateExpression ... children) {
-            assert kind == '|' || kind == '+';
-            this.children = children;
-            this.kind = kind == '|';
-        }
-
-        @Override
-        public boolean evaluate(AnimationState as) {
-            for(StateExpression e : children) {
-                if(kind == e.evaluate(as)) {
-                    return kind ^ negate;
-                }
-            }
-            return !kind ^ negate;
-        }
+    StateExpression() {
     }
 
-    static class Xor extends StateExpression {
-        private final StateExpression[] children;
-        public Xor(StateExpression ... children) {
+    abstract void getUsedStateKeys(BitSet bs);
+    
+    boolean negate;
+
+    public static class Logic extends StateExpression {
+        final StateExpression[] children;
+        final boolean and;
+        final boolean xor;
+        
+        public Logic(char kind, StateExpression ... children) {
+            if(kind != '|' && kind != '+' && kind != '^') {
+                throw new IllegalArgumentException("kind");
+            }
             this.children = children;
+            this.and = kind == '+';
+            this.xor = kind == '^';
         }
 
         @Override
         public boolean evaluate(AnimationState as) {
-            boolean result = negate;
+            boolean result = and ^ negate;
             for(StateExpression e : children) {
-                result ^= e.evaluate(as);
+                boolean value = e.evaluate(as);
+                if(xor) {
+                    result ^= value;
+                } else if(and != value) {
+                    return result ^ true;
+                }
             }
             return result;
         }
-    }
 
-    static class Check extends StateExpression {
-        private final StateKey state;
-        public Check(String state) {
-            this.state = StateKey.get(state);
+        @Override
+        void getUsedStateKeys(BitSet bs) {
+            for(StateExpression e : children) {
+                e.getUsedStateKeys(bs);
+            }
+        }
+    }
+    
+    public static class Check extends StateExpression {
+        final StateKey state;
+
+        public Check(StateKey state) {
+            this.state = state;
         }
 
         @Override
         public boolean evaluate(AnimationState as) {
             return negate ^ (as != null && as.getAnimationState(state));
+        }
+
+        @Override
+        void getUsedStateKeys(BitSet bs) {
+            bs.set(state.getID());
         }
     }
 }

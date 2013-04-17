@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -29,17 +29,20 @@
  */
 package de.matthiasmann.twl.textarea;
 
+import de.matthiasmann.twl.Color;
 import de.matthiasmann.twl.textarea.TextAreaModel.Clear;
 import de.matthiasmann.twl.textarea.TextAreaModel.Display;
 import de.matthiasmann.twl.textarea.TextAreaModel.FloatPosition;
 import de.matthiasmann.twl.textarea.TextAreaModel.HAlignment;
 import de.matthiasmann.twl.textarea.TextAreaModel.VAlignment;
+import de.matthiasmann.twl.utils.StringList;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 
 /**
  *
+ * @param <T> the data type for this style attribute
  * @author Matthias Mann
  */
 public final class StyleAttribute<T> {
@@ -49,20 +52,31 @@ public final class StyleAttribute<T> {
     // cascading attributes
     public static final StyleAttribute<HAlignment> HORIZONTAL_ALIGNMENT = new StyleAttribute<HAlignment>(true, HAlignment.class, HAlignment.LEFT);
     public static final StyleAttribute<VAlignment> VERTICAL_ALIGNMENT = new StyleAttribute<VAlignment>(true, VAlignment.class, VAlignment.BOTTOM);
-    public static final StyleAttribute<Value> TEXT_IDENT = new StyleAttribute<Value>(true, Value.class, Value.ZERO_PX);
-    public static final StyleAttribute<String> FONT_NAME = new StyleAttribute<String>(true, String.class, "default");
+    public static final StyleAttribute<Value> TEXT_INDENT = new StyleAttribute<Value>(true, Value.class, Value.ZERO_PX);
+    public static final StyleAttribute<TextDecoration> TEXT_DECORATION = new StyleAttribute<TextDecoration>(true, TextDecoration.class, TextDecoration.NONE);
+    public static final StyleAttribute<TextDecoration> TEXT_DECORATION_HOVER = new StyleAttribute<TextDecoration>(true, TextDecoration.class, null);
+    public static final StyleAttribute<StringList> FONT_FAMILIES = new StyleAttribute<StringList>(true, StringList.class, new StringList("default"));
+    public static final StyleAttribute<Value> FONT_SIZE = new StyleAttribute<Value>(true, Value.class, new Value(14, Value.Unit.PX));
+    public static final StyleAttribute<Integer> FONT_WEIGHT = new StyleAttribute<Integer>(true, Integer.class, 400);
+    public static final StyleAttribute<Boolean> FONT_ITALIC = new StyleAttribute<Boolean>(true, Boolean.class, Boolean.FALSE);
+    public static final StyleAttribute<Integer> TAB_SIZE = new StyleAttribute<Integer>(true, Integer.class, 8);
     public static final StyleAttribute<String> LIST_STYLE_IMAGE = new StyleAttribute<String>(true, String.class, "ul-bullet");
     public static final StyleAttribute<OrderedListType> LIST_STYLE_TYPE = new StyleAttribute<OrderedListType>(true, OrderedListType.class, OrderedListType.DECIMAL);
     public static final StyleAttribute<Boolean> PREFORMATTED = new StyleAttribute<Boolean>(true, Boolean.class, Boolean.FALSE);
     public static final StyleAttribute<Boolean> BREAKWORD = new StyleAttribute<Boolean>(true, Boolean.class, Boolean.FALSE);
+    public static final StyleAttribute<Color> COLOR = new StyleAttribute<Color>(true, Color.class, Color.WHITE);
+    public static final StyleAttribute<Color> COLOR_HOVER = new StyleAttribute<Color>(true, Color.class, null);
+    public static final StyleAttribute<Boolean> INHERIT_HOVER = new StyleAttribute<Boolean>(true, Boolean.class, Boolean.FALSE);
 
     // non cascading attribute
     public static final StyleAttribute<Clear> CLEAR = new StyleAttribute<Clear>(false, Clear.class, Clear.NONE);
     public static final StyleAttribute<Display> DISPLAY = new StyleAttribute<Display>(false, Display.class, Display.INLINE);
     public static final StyleAttribute<FloatPosition> FLOAT_POSITION = new StyleAttribute<FloatPosition>(false, FloatPosition.class, FloatPosition.NONE);
-    public static final StyleAttribute<Value> WIDTH = new StyleAttribute<Value>(false, Value.class, Value.ZERO_PX);
+    public static final StyleAttribute<Value> WIDTH = new StyleAttribute<Value>(false, Value.class, Value.AUTO);
     public static final StyleAttribute<Value> HEIGHT = new StyleAttribute<Value>(false, Value.class, Value.AUTO);
     public static final StyleAttribute<String> BACKGROUND_IMAGE = new StyleAttribute<String>(false, String.class, null);
+    public static final StyleAttribute<Color> BACKGROUND_COLOR = new StyleAttribute<Color>(false, Color.class, Color.TRANSPARENT);
+    public static final StyleAttribute<Color> BACKGROUND_COLOR_HOVER = new StyleAttribute<Color>(false, Color.class, Color.TRANSPARENT);
     public static final StyleAttribute<Value> MARGIN_TOP = new StyleAttribute<Value>(false, Value.class, Value.ZERO_PX);
     public static final StyleAttribute<Value> MARGIN_LEFT = new StyleAttribute<Value>(false, Value.class, Value.ZERO_PX);
     public static final StyleAttribute<Value> MARGIN_RIGHT = new StyleAttribute<Value>(false, Value.class, Value.ZERO_PX);
@@ -131,6 +145,7 @@ public final class StyleAttribute<T> {
     private final T defaultValue;
     private final int ordinal;
 
+    @SuppressWarnings("LeakingThisInConstructor")
     private StyleAttribute(boolean inherited, Class<T> dataType, T defaultValue) {
         this.inherited = inherited;
         this.dataType = dataType;
@@ -138,7 +153,7 @@ public final class StyleAttribute<T> {
         this.ordinal = attributes.size();
         attributes.add(this);
     }
-
+    
     /**
      * Returns the number of implemented StyleAttributes.
      * @return the number of implemented StyleAttributes.

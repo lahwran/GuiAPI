@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -29,6 +29,8 @@
  */
 package de.matthiasmann.twl.textarea;
 
+import de.matthiasmann.twl.utils.StringList;
+import de.matthiasmann.twl.Color;
 import de.matthiasmann.twl.utils.ParameterStringParser;
 import de.matthiasmann.twl.utils.TextUtil;
 import java.util.HashMap;
@@ -77,16 +79,28 @@ public class CSSStyle extends Style {
             parseBox(key.substring(7), value, StyleAttribute.PADDING);
             return;
         }
-        if("text-indent".equals(key)) {
-            parseValueUnit(StyleAttribute.TEXT_IDENT, value);
+        if(key.startsWith("font")) {
+            parseFont(key, value);
             return;
         }
-        if("font-family".equals(key) || "font".equals(key)) {
-            put(StyleAttribute.FONT_NAME, value);
+        if("text-indent".equals(key)) {
+            parseValueUnit(StyleAttribute.TEXT_INDENT, value);
+            return;
+        }
+        if("-twl-font".equals(key)) {
+            put(StyleAttribute.FONT_FAMILIES, new StringList(value));
+            return;
+        }
+        if("-twl-hover".equals(key)) {
+            parseEnum(StyleAttribute.INHERIT_HOVER, INHERITHOVER, value);
             return;
         }
         if("text-align".equals(key)) {
             parseEnum(StyleAttribute.HORIZONTAL_ALIGNMENT, value);
+            return;
+        }
+        if("text-decoration".equals(key)) {
+            parseEnum(StyleAttribute.TEXT_DECORATION, TEXTDECORATION, value);
             return;
         }
         if("vertical-align".equals(key)) {
@@ -133,6 +147,18 @@ public class CSSStyle extends Style {
             parseURL(StyleAttribute.BACKGROUND_IMAGE, value);
             return;
         }
+        if("background-color".equals(key) || "-twl-background-color".equals(key)) {
+            parseColor(StyleAttribute.BACKGROUND_COLOR, value);
+            return;
+        }
+        if("color".equals(key)) {
+            parseColor(StyleAttribute.COLOR, value);
+            return;
+        }
+        if("tab-size".equals(key) || "-moz-tab-size".equals(key)) {
+            parseInteger(StyleAttribute.TAB_SIZE, value);
+            return;
+        }
         throw new IllegalArgumentException("Unsupported key: " + key);
     }
 
@@ -177,12 +203,48 @@ public class CSSStyle extends Style {
             }
         }
     }
-
+    
+    private void parseFont(String key, String value) {
+        if("font-family".equals(key)) {
+            parseList(StyleAttribute.FONT_FAMILIES, value);
+            return;
+        }
+        if("font-weight".equals(key)) {
+            Integer weight = WEIGHTS.get(value);
+            if(weight == null) {
+                weight = Integer.valueOf(value);
+            }
+            put(StyleAttribute.FONT_WEIGHT, weight);
+            return;
+        }
+        if("font-size".equals(key)) {
+            parseValueUnit(StyleAttribute.FONT_SIZE, value);
+            return;
+        }
+        if("font-style".equals(key)) {
+            parseEnum(StyleAttribute.FONT_ITALIC, ITALIC, value);
+            return;
+        }
+        if("font".equals(key)) {
+            value = parseStartsWith(StyleAttribute.FONT_WEIGHT, WEIGHTS, value);
+            value = parseStartsWith(StyleAttribute.FONT_ITALIC, ITALIC, value);
+            if(value.length() > 0 && Character.isDigit(value.charAt(0))) {
+                int end = TextUtil.indexOf(value, ' ', 0);
+                parseValueUnit(StyleAttribute.FONT_SIZE, value.substring(0, end));
+                end = TextUtil.skipSpaces(value, end);
+                value = value.substring(end);
+            }
+            parseList(StyleAttribute.FONT_FAMILIES, value);
+        }
+    }
+    
     private Value parseValueUnit(String value) {
         Value.Unit unit;
         int suffixLength = 2;
         if(value.endsWith("px")) {
             unit = Value.Unit.PX;
+        } else if(value.endsWith("pt")) {
+            unit = Value.Unit.PT;
         } else if(value.endsWith("em")) {
             unit = Value.Unit.EM;
         } else if(value.endsWith("ex")) {
@@ -198,7 +260,7 @@ public class CSSStyle extends Style {
             throw new IllegalArgumentException("Unknown numeric suffix: " + value);
         }
 
-        String numberPart = value.substring(0, value.length() - suffixLength).trim();
+        String numberPart = TextUtil.trim(value, 0, value.length() - suffixLength);
         return new Value(Float.parseFloat(numberPart), unit);
     }
 
@@ -215,6 +277,15 @@ public class CSSStyle extends Style {
         put(attribute, parseValueUnit(value));
     }
 
+    private void parseInteger(StyleAttribute<Integer> attribute, String value) {
+        if("inherit".equals(value)) {
+            put(attribute, null);
+        } else {
+            int intval = Integer.parseInt(value);
+            put(attribute, intval);
+        }
+    }
+    
     private<T> void parseEnum(StyleAttribute<T> attribute, HashMap<String, T> map, String value) {
         T obj = map.get(value);
         if(obj == null) {
@@ -227,21 +298,125 @@ public class CSSStyle extends Style {
         E obj = Enum.valueOf(attribute.getDataType(), value.toUpperCase(Locale.ENGLISH));
         put(attribute, obj);
     }
+    
+    private<E> String parseStartsWith(StyleAttribute<E> attribute, HashMap<String, E> map, String value) {
+        int end = TextUtil.indexOf(value, ' ', 0);
+        E obj = map.get(value.substring(0, end));
+        if(obj != null) {
+            end = TextUtil.skipSpaces(value, end);
+            value = value.substring(end);
+        }
+        put(attribute, obj);
+        return value;
+    }
 
     private void parseURL(StyleAttribute<String> attribute, String value) {
+        put(attribute, stripURL(value));
+    }
+
+    static String stripTrim(String value, int start, int end) {
+        return TextUtil.trim(value, start, value.length() - end);
+    }
+    
+    static String stripURL(String value) {
         if(value.startsWith("url(") && value.endsWith(")")) {
-            value = value.substring(4, value.length() - 1).trim();
-            if((value.startsWith("\"") && value.endsWith("\"")) ||
-                    (value.startsWith("'") && value.endsWith("'"))) {
-                value = value.substring(1, value.length() - 1);
+            value = stripQuotes(stripTrim(value, 4, 1));
+        }
+        return value;
+    }
+    
+    static String stripQuotes(String value) {
+        if((value.startsWith("\"") && value.endsWith("\"")) ||
+                (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.substring(1, value.length() - 1);
+        }
+        return value;
+    }
+
+    private void parseColor(StyleAttribute<Color> attribute, String value) {
+        Color color;
+        if(value.startsWith("rgb(") && value.endsWith(")")) {
+            value = stripTrim(value, 4, 1);
+            byte[] rgb = parseRGBA(value, 3);
+            color = new Color(rgb[0], rgb[1], rgb[2], (byte)255);
+        } else if(value.startsWith("rgba(") && value.endsWith(")")) {
+            value = stripTrim(value, 5, 1);
+            byte[] rgba = parseRGBA(value, 4);
+            color = new Color(rgba[0], rgba[1], rgba[2], rgba[3]);
+        } else {
+            color = Color.parserColor(value);
+            if(color == null) {
+                throw new IllegalArgumentException("unknown color name: " + value);
             }
         }
-        put(attribute, value);
+        put(attribute, color);
+    }
+    
+    private byte[] parseRGBA(String value, int numElements) {
+        String[] parts = value.split(",");
+        if(parts.length != numElements) {
+            throw new IllegalArgumentException("3 values required for rgb()");
+        }
+        byte[] rgba = new byte[numElements];
+        for(int i=0 ; i<numElements ; i++) {
+            String part = parts[i].trim();
+            int v;
+            if(i == 3) {
+                // handle alpha component specially
+                float f = Float.parseFloat(part);
+                v = Math.round(f * 255.0f);
+            } else {
+                boolean percent = part.endsWith("%");
+                if(percent) {
+                    part = stripTrim(value, 0, 1);
+                }
+                v = Integer.parseInt(part);
+                if(percent) {
+                    v = 255*v / 100;
+                }
+            }
+            rgba[i] = (byte)Math.max(0, Math.min(255, v));
+        }
+        return rgba;
+    }
+    
+    private void parseList(StyleAttribute<StringList> attribute, String value) {
+        put(attribute, parseList(value, 0));
+    }
+    
+    static StringList parseList(String value, int idx) {
+        idx = TextUtil.skipSpaces(value, idx);
+        if(idx >= value.length()) {
+            return null;
+        }
+
+        char startChar = value.charAt(idx);
+        int end;
+        String part;
+
+        if(startChar == '"' || startChar == '\'') {
+            ++idx;
+            end = TextUtil.indexOf(value, startChar, idx);
+            part = value.substring(idx, end);
+            end = TextUtil.skipSpaces(value, ++end);
+            if(end < value.length() && value.charAt(end) != ',') {
+                throw new IllegalArgumentException("',' expected at " + idx);
+            }
+        } else {
+            end = TextUtil.indexOf(value, ',', idx);
+            part = TextUtil.trim(value, idx, end);
+        }
+
+        return new StringList(part, parseList(value, end+1));
     }
     
     static final HashMap<String, Boolean> PRE = new HashMap<String, Boolean>();
     static final HashMap<String, Boolean> BREAKWORD = new HashMap<String, Boolean>();
     static final HashMap<String, OrderedListType> OLT = new HashMap<String, OrderedListType>();
+    static final HashMap<String, Boolean> ITALIC = new HashMap<String, Boolean>();
+    static final HashMap<String, Integer> WEIGHTS = new HashMap<String, Integer>();
+    static final HashMap<String, TextDecoration> TEXTDECORATION = new HashMap<String, TextDecoration>();
+    static final HashMap<String, Boolean> INHERITHOVER = new HashMap<String, Boolean>();
 
     static OrderedListType createRoman(final boolean lowercase) {
         return new OrderedListType() {
@@ -278,5 +453,19 @@ public class CSSStyle extends Style {
         OLT.put("lower-norwegian", new OrderedListType("abcdefghijklmnopqrstuvwxyzæøå"));
         OLT.put("upper-russian-short", new OrderedListType("АБВГДЕЖЗИКЛМНОПРСТУФХЦЧШЩЭЮЯ"));
         OLT.put("lower-russian-short", new OrderedListType("абвгдежзиклмнопрстуфхцчшщэюя"));
+        
+        ITALIC.put("normal", Boolean.FALSE);
+        ITALIC.put("italic", Boolean.TRUE);
+        ITALIC.put("oblique", Boolean.TRUE);
+        
+        WEIGHTS.put("normal", 400);
+        WEIGHTS.put("bold", 700);
+        
+        TEXTDECORATION.put("none", TextDecoration.NONE);
+        TEXTDECORATION.put("underline", TextDecoration.UNDERLINE);
+        TEXTDECORATION.put("line-through", TextDecoration.LINE_THROUGH);
+        
+        INHERITHOVER.put("inherit", Boolean.TRUE);
+        INHERITHOVER.put("normal", Boolean.FALSE);
     }
 }

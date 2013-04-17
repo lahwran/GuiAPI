@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -1051,6 +1051,7 @@ public class DialogLayout extends Widget {
         /**
          * Adds a flexible gap with no minimum size.
          *
+         * <p>This is equivalent to {@code addGap(0, 0, Short.MAX_VALUE) }</p>
          * @return this Group
          */
         public Group addGap() {
@@ -1058,6 +1059,17 @@ public class DialogLayout extends Widget {
             return this;
         }
 
+        /**
+         * Adds a named gap.
+         * 
+         * <p>Named gaps are configured via the theme parameter "namedGaps" which
+         * maps from names to &lt;gap&gt; objects.</p>
+         * 
+         * <p>They behave equal to {@link #addGap(int, int, int) }.</p>
+         * 
+         * @param name the name of the gap (vcase sensitive)
+         * @return this Group
+         */
         public Group addGap(String name) {
             if(name.length() == 0) {
                 throw new IllegalArgumentException("name");
@@ -1291,23 +1303,17 @@ public class DialogLayout extends Widget {
                     Arrays.sort(deltas, 0, resizeable);
                 }
                 
-                int sdelta = delta / resizeable;
-                int rest = delta - sdelta * resizeable;
                 int sizes[] = new int[springs.size()];
 
+                int remaining = resizeable;
                 for(int i=0 ; i<resizeable ; i++) {
                     SpringDelta d = deltas[i];
-                    if(i+1 == resizeable) {
-                        // last one gets all
-                        sdelta += rest;
-                    }
+                    
+                    int sdelta = delta / remaining;
                     int ddelta = Math.min(d.delta, sdelta);
                     delta -= ddelta;
-                    if(ddelta != sdelta && i+1 < resizeable) {
-                        int remaining = resizeable - i - 1;
-                        sdelta = delta / remaining;
-                        rest = delta - sdelta * remaining;
-                    }
+                    remaining--;
+                    
                     if(useMin) {
                         ddelta = -ddelta;
                     }

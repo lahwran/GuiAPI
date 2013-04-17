@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -92,6 +92,7 @@ public class TabbedPane extends Widget {
 
         addActionMapping("nextTab", "cycleTabs", +1);
         addActionMapping("prevTab", "cycleTabs", -1);
+        setCanAcceptKeyboardFocus(false);
     }
 
     public TabPosition getTabPosition() {
@@ -176,6 +177,8 @@ public class TabbedPane extends Widget {
             }
 
             if(scrollTabs) {
+                validateLayout();
+                
                 int pos, end, size;
                 if(tabPosition.horz) {
                     pos  = tab.button.getX() - tabBox.getX();
@@ -194,6 +197,10 @@ public class TabbedPane extends Widget {
                 } else if(end > tabScrollPosition + size) {
                     setScrollPos(end - size);
                 }
+            }
+            
+            if(tab != null && tab.pane != null) {
+                tab.pane.requestKeyboardFocus();
             }
         }
     }
@@ -217,6 +224,21 @@ public class TabbedPane extends Widget {
         tabBox.removeAllChildren();
         tabs.clear();
         activeTab = null;
+    }
+    
+    public int getNumTabs() {
+        return tabs.size();
+    }
+    
+    public Tab getTab(int index) {
+        return tabs.get(index);
+    }
+    
+    public int getActiveTabIndex() {
+        if(tabs.isEmpty()) {
+            return -1;
+        }
+        return tabs.indexOf(activeTab);
     }
 
     public void cycleTabs(int direction) {
@@ -313,29 +335,29 @@ public class TabbedPane extends Widget {
         switch(tabPosition) {
             case TOP:
                 tabBoxClip.setPosition(getInnerX(), getInnerY());
-                tabBoxClip.setSize(getInnerWidth() - scrollCtrlsWidth, tabBoxHeight);
-                container.setSize(getInnerWidth(), getInnerHeight() - tabBoxHeight);
+                tabBoxClip.setSize(Math.max(0, getInnerWidth() - scrollCtrlsWidth), tabBoxHeight);
+                container.setSize(getInnerWidth(), Math.max(0, getInnerHeight() - tabBoxHeight));
                 container.setPosition(getInnerX(), tabBoxClip.getBottom());
                 break;
 
             case LEFT:
                 tabBoxClip.setPosition(getInnerX(), getInnerY());
-                tabBoxClip.setSize(tabBoxWidth, getInnerHeight() - scrollCtrlsHeight);
-                container.setSize(getInnerWidth() - tabBoxWidth, getInnerHeight());
+                tabBoxClip.setSize(tabBoxWidth, Math.max(0, getInnerHeight() - scrollCtrlsHeight));
+                container.setSize(Math.max(0, getInnerWidth() - tabBoxWidth), getInnerHeight());
                 container.setPosition(tabBoxClip.getRight(), getInnerY());
                 break;
 
             case RIGHT:
                 tabBoxClip.setPosition(getInnerX() - tabBoxWidth, getInnerY());
-                tabBoxClip.setSize(tabBoxWidth, getInnerHeight() - scrollCtrlsHeight);
-                container.setSize(getInnerWidth() - tabBoxWidth, getInnerHeight());
+                tabBoxClip.setSize(tabBoxWidth, Math.max(0, getInnerHeight() - scrollCtrlsHeight));
+                container.setSize(Math.max(0, getInnerWidth() - tabBoxWidth), getInnerHeight());
                 container.setPosition(getInnerX(), getInnerY());
                 break;
 
             case BOTTOM:
                 tabBoxClip.setPosition(getInnerX(), getInnerY() - tabBoxHeight);
-                tabBoxClip.setSize(getInnerWidth() - scrollCtrlsWidth, tabBoxHeight);
-                container.setSize(getInnerWidth(), getInnerHeight() - tabBoxHeight);
+                tabBoxClip.setSize(Math.max(0, getInnerWidth() - scrollCtrlsWidth), tabBoxHeight);
+                container.setSize(getInnerWidth(), Math.max(0, getInnerHeight() - tabBoxHeight));
                 container.setPosition(getInnerX(), getInnerY());
                 break;
         }
@@ -435,12 +457,13 @@ public class TabbedPane extends Widget {
     }
 
     public class Tab extends HasCallback implements BooleanModel {
-        final ToggleButton button;
+        final TabButton button;
         Widget pane;
+        Runnable closeCallback;
+        Object userValue;
 
         Tab() {
-            button = new ToggleButton(this);
-            button.setTheme("tabbutton");
+            button = new TabButton(this);
         }
 
         public boolean getValue() {
@@ -474,10 +497,44 @@ public class TabbedPane extends Widget {
             button.setText(title);
             return this;
         }
+        
+        public String getTitle() {
+            return button.getText();
+        }
 
+        public Object getUserValue() {
+            return userValue;
+        }
+
+        public void setUserValue(Object userValue) {
+            this.userValue = userValue;
+        }
+
+        /**
+         * Sets the user theme for the tab button. If no user theme is set
+         * ({@code null}) then it will use "tabbutton" or
+         * "tabbuttonWithCloseButton" if a close callback is registered.
+         * 
+         * @param theme the user theme name - can be null.
+         * @return {@code this}
+         */
         public Tab setTheme(String theme) {
-            button.setTheme(theme);
+            button.setUserTheme(theme);
             return this;
+        }
+
+        public Runnable getCloseCallback() {
+            return closeCallback;
+        }
+
+        public void setCloseCallback(Runnable closeCallback) {
+            if(this.closeCallback != null) {
+                button.removeCloseButton();
+            }
+            this.closeCallback = closeCallback;
+            if(closeCallback != null) {
+                button.setCloseButton(closeCallback);
+            }
         }
 
         @Override
@@ -489,39 +546,88 @@ public class TabbedPane extends Widget {
         }
     }
 
-    private static class Container extends Widget {
-        @Override
-        public int getMinWidth() {
-            return Math.max(super.getMinWidth(), getBorderHorizontal() +
-                    BoxLayout.computeMinWidthVertical(this));
+    private static class TabButton extends ToggleButton {
+        Button closeButton;
+        Alignment closeButtonAlignment;
+        int closeButtonOffsetX;
+        int closeButtonOffsetY;
+        String userTheme;
+        
+        TabButton(BooleanModel model) {
+            super(model);
+            setCanAcceptKeyboardFocus(false);
+            closeButtonAlignment = Alignment.RIGHT;
+        }
+
+        public void setUserTheme(String userTheme) {
+            this.userTheme = userTheme;
+            doSetTheme();
+        }
+        
+        private void doSetTheme() {
+            if(userTheme != null) {
+                setTheme(userTheme);
+            } else if(closeButton != null) {
+                setTheme("tabbuttonWithCloseButton");
+            } else {
+                setTheme("tabbutton");
+            }
+            reapplyTheme();
         }
 
         @Override
-        public int getMinHeight() {
-            return Math.max(super.getMinHeight(), getBorderVertical() +
-                    BoxLayout.computeMinHeightHorizontal(this));
+        protected void applyTheme(ThemeInfo themeInfo) {
+            super.applyTheme(themeInfo);
+            if(closeButton != null) {
+                closeButtonAlignment = themeInfo.getParameter("closeButtonAlignment", Alignment.RIGHT);
+                closeButtonOffsetX = themeInfo.getParameter("closeButtonOffsetX", 0);
+                closeButtonOffsetY = themeInfo.getParameter("closeButtonOffsetY", 0);
+            } else {
+                closeButtonAlignment = Alignment.RIGHT;
+                closeButtonOffsetX = 0;
+                closeButtonOffsetY = 0;
+            }
         }
 
-        @Override
-        public int getPreferredInnerWidth() {
-            return BoxLayout.computePreferredWidthVertical(this);
+        void setCloseButton(Runnable callback) {
+            closeButton = new Button();
+            closeButton.setTheme("closeButton");
+            doSetTheme();
+            add(closeButton);
+            closeButton.addCallback(callback);
+        }
+        
+        void removeCloseButton() {
+            removeChild(closeButton);
+            closeButton = null;
+            doSetTheme();
         }
 
         @Override
         public int getPreferredInnerHeight() {
-            return BoxLayout.computePreferredHeightHorizontal(this);
+            return computeTextHeight();
         }
 
         @Override
+        public int getPreferredInnerWidth() {
+            return computeTextWidth();
+        }
+        
+        @Override
         protected void layout() {
-            layoutChildrenFullInnerArea();
+            if(closeButton != null) {
+                closeButton.adjustSize();
+                closeButton.setPosition(
+                        getX() + closeButtonOffsetX + closeButtonAlignment.computePositionX(getWidth(), closeButton.getWidth()),
+                        getY() + closeButtonOffsetY + closeButtonAlignment.computePositionY(getHeight(), closeButton.getHeight()));
+            }
         }
     }
 
     private class CB implements Runnable {
         final int dir;
 
-        public CB(int dir) {
+        CB(int dir) {
             this.dir = dir;
         }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2009, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -31,31 +31,37 @@ package de.matthiasmann.twl.theme;
 
 import de.matthiasmann.twl.Alignment;
 import de.matthiasmann.twl.Border;
+import de.matthiasmann.twl.Color;
 import de.matthiasmann.twl.DebugHook;
 import de.matthiasmann.twl.DialogLayout;
 import de.matthiasmann.twl.Dimension;
 import de.matthiasmann.twl.InputMap;
 import de.matthiasmann.twl.KeyStroke;
 import de.matthiasmann.twl.ListBox;
+import de.matthiasmann.twl.ParameterMap;
 import de.matthiasmann.twl.renderer.Font;
 import de.matthiasmann.twl.renderer.Image;
 import de.matthiasmann.twl.PositionAnimatedPanel;
 import de.matthiasmann.twl.ThemeInfo;
 import de.matthiasmann.twl.renderer.CacheContext;
+import de.matthiasmann.twl.renderer.FontMapper;
 import de.matthiasmann.twl.renderer.FontParameter;
 import de.matthiasmann.twl.renderer.Renderer;
 import de.matthiasmann.twl.utils.AbstractMathInterpreter;
 import de.matthiasmann.twl.utils.StateExpression;
+import de.matthiasmann.twl.utils.StateSelect;
+import de.matthiasmann.twl.utils.StringList;
 import de.matthiasmann.twl.utils.TextUtil;
 import de.matthiasmann.twl.utils.XMLParser;
 import java.io.IOException;
 import java.net.URL;
 import java.text.ParseException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
+
+import org.lwjgl.opengl.Util;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
@@ -76,13 +82,13 @@ public class ThemeManager {
 
     static final Object NULL = new Object();
     
+    final ParameterMapImpl constants;
     private final Renderer renderer;
     private final CacheContext cacheContext;
     private final ImageManager imageManager;
     private final HashMap<String, Font> fonts;
     private final HashMap<String, ThemeInfoImpl> themes;
     private final HashMap<String, InputMap> inputMaps;
-    final HashMap<String, Object> constants;
     private final MathInterpreter mathInterpreter;
     private Font defaultFont;
     private Font firstFont;
@@ -91,13 +97,13 @@ public class ThemeManager {
     final ParameterListImpl emptyList;
 
     private ThemeManager(Renderer renderer, CacheContext cacheContext) throws XmlPullParserException, IOException {
+        this.constants = new ParameterMapImpl(this, null);
         this.renderer = renderer;
         this.cacheContext = cacheContext;
-        this.imageManager = new ImageManager(renderer);
+        this.imageManager = new ImageManager(constants, renderer);
         this.fonts  = new HashMap<String, Font>();
         this.themes = new HashMap<String, ThemeInfoImpl>();
         this.inputMaps = new HashMap<String, InputMap>();
-        this.constants = new HashMap<String, Object>();
         this.emptyMap = new ParameterMapImpl(this, null);
         this.emptyList = new ParameterListImpl(this, null);
         this.mathInterpreter = new MathInterpreter();
@@ -165,7 +171,7 @@ public class ThemeManager {
      * @param cacheContext The cache context into which the resources are loaded
      * @return a new ThemeManager
      * @throws IOException if an error occured while loading
-     * @throws NullPointerException if one of the passed parameters is {@code null}
+     * @throws IllegalArgumentException if one of the passed parameters is {@code null}
      * @see Renderer#setActiveCacheContext(de.matthiasmann.twl.renderer.CacheContext)
      * @see #destroy() 
      */
@@ -206,12 +212,21 @@ public class ThemeManager {
     }
 
     public ThemeInfo findThemeInfo(String themePath) {
-        return findThemeInfo(themePath, true);
+        return findThemeInfo(themePath, true, true);
     }
 
-    private ThemeInfo findThemeInfo(String themePath, boolean warn) {
+    private ThemeInfo findThemeInfo(String themePath, boolean warn, boolean useFallback) {
         int start = TextUtil.indexOf(themePath, '.', 0);
         ThemeInfo info = themes.get(themePath.substring(0, start));
+        if(info == null) {
+            info = themes.get("*");
+            if(info != null) {
+                if(!useFallback) {
+                    return null;
+                }
+                DebugHook.getDebugHook().usingFallbackTheme(themePath);
+            }
+        }
         while(info != null && ++start < themePath.length()) {
             int next = TextUtil.indexOf(themePath, '.', start);
             info = info.getChildTheme(themePath.substring(start, next));
@@ -239,21 +254,16 @@ public class ThemeManager {
         return imageManager.getCursor(name);
     }
 
-    public final void insertConstant(String name, Object value) {
-        if(constants.containsKey(name)) {
-            throw new IllegalArgumentException("Constant '"+name+"' already declared");
-        }
-        if(value == null) {
-            value = NULL;
-        }
-        constants.put(name, value);
+    public ParameterMap getConstants() {
+        return constants;
     }
     
-    protected void insertDefaultConstants() {
-        insertConstant("SINGLE_COLUMN", ListBox.SINGLE_COLUMN);
+    private void insertDefaultConstants() {
+        constants.put("SINGLE_COLUMN", ListBox.SINGLE_COLUMN);
+        constants.put("MAX", Short.MAX_VALUE);
     }
-
-    private void parseThemeFile(URL url) throws XmlPullParserException, IOException {
+    
+    private void parseThemeFile(URL url) throws IOException {
         try {
             XMLParser xmlp = new XMLParser(url);
             try {
@@ -264,6 +274,10 @@ public class ThemeManager {
             } finally {
                 xmlp.close();
             }
+        } catch (XmlPullParserException ex) {
+            throw new ThemeException(ex.getMessage(), url, ex.getLineNumber(), ex.getColumnNumber(), ex);
+        } catch (ThemeException ex) {
+            throw ex;
         } catch (Exception ex) {
             throw (IOException)(new IOException("while parsing Theme XML: " + url).initCause(ex));
         }
@@ -280,7 +294,12 @@ public class ThemeManager {
                 imageManager.parseImages(xmlp, baseUrl);
             } else if("include".equals(tagName)) {
                 String fontFileName = xmlp.getAttributeNotNull("filename");
-                parseThemeFile(new URL(baseUrl, fontFileName));
+                try {
+                    parseThemeFile(new URL(baseUrl, fontFileName));
+                } catch (ThemeException ex) {
+                    ex.addIncludedBy(baseUrl, xmlp.getLineNumber(), xmlp.getColumnNumber());
+                    throw ex;
+                }
                 xmlp.nextTag();
             } else {
                 final String name = xmlp.getAttributeNotNull("name");
@@ -311,11 +330,7 @@ public class ThemeManager {
                         defaultFont = font;
                     }
                 } else if("constantDef".equals(tagName)) {
-                    Map<String, ?> value = parseParam(xmlp, baseUrl, "constantDef", null);
-                    if(value.size() != 1) {
-                        throw xmlp.error("constant definitions must define exactly 1 value");
-                    }
-                    insertConstant(name, value.values().iterator().next());
+                    parseParam(xmlp, baseUrl, "constantDef", null, constants);
                 } else {
                     throw xmlp.unexpected();
                 }
@@ -340,7 +355,7 @@ public class ThemeManager {
             if(parent == null) {
                 throw xmlp.error("Can't merge on top level");
             }
-            Object o = parent.params.get(name);
+            Object o = parent.getParam(name);
             if(o instanceof InputMap) {
                 base = (InputMap)o;
             } else if(o != null) {
@@ -358,28 +373,126 @@ public class ThemeManager {
         InputMap im = base.addKeyStrokes(keyStrokes);
         return im;
     }
-
+    
     private Font parseFont(XMLParser xmlp, URL baseUrl) throws XmlPullParserException, IOException {
-        Map<String, String> params = xmlp.getUnusedAttributes();
+        URL url = baseUrl;
+        String fileName = xmlp.getAttributeValue(null, "filename");
+        if(fileName != null) {
+            url = new URL(url, fileName);
+        }
+        
+        StringList fontFamilies = parseList(xmlp, "families");
+        int fontSize = 0;
+        int fontStyle = 0;
+        if(fontFamilies != null) {
+            fontSize = xmlp.parseIntFromAttribute("size");
+            StringList style = parseList(xmlp, "style");
+            while(style != null) {
+                if("bold".equalsIgnoreCase(style.getValue())) {
+                    fontStyle |= FontMapper.STYLE_BOLD;
+                } else if("italic".equalsIgnoreCase(style.getValue())) {
+                    fontStyle |= FontMapper.STYLE_ITALIC;
+                }
+                style = style.getNext();
+            }
+        }
+        
+        FontParameter baseParams = new FontParameter();
+        parseFontParameter(xmlp, baseParams);
         ArrayList<FontParameter> fontParams = new ArrayList<FontParameter>();
-        params.remove("name");
-        params.remove("default");
+        ArrayList<StateExpression> stateExpr = new ArrayList<StateExpression>();
+        
         xmlp.nextTag();
         while(!xmlp.isEndTag()) {
             xmlp.require(XmlPullParser.START_TAG, null, "fontParam");
+            
             StateExpression cond = ParserUtil.parseCondition(xmlp);
             if(cond == null) {
                 throw xmlp.error("Condition required");
             }
-            Map<String, String> condParams = xmlp.getUnusedAttributes();
-            condParams.remove("if");
-            condParams.remove("unless");
-            fontParams.add(new FontParameter(cond, condParams));
+            stateExpr.add(cond);
+            
+            FontParameter params = new FontParameter(baseParams);
+            parseFontParameter(xmlp, params);
+            fontParams.add(params);
+            
             xmlp.nextTag();
             xmlp.require(XmlPullParser.END_TAG, null, "fontParam");
             xmlp.nextTag();
         }
-        return renderer.loadFont(baseUrl, params, fontParams);
+        
+        fontParams.add(baseParams);
+        StateSelect stateSelect = new StateSelect(stateExpr);
+        FontParameter[] stateParams = fontParams.toArray(new FontParameter[fontParams.size()]);
+        Util.checkGLError();
+        if(fontFamilies != null) {
+            FontMapper fontMapper = renderer.getFontMapper();
+            if(fontMapper != null) {
+                Font font = fontMapper.getFont(fontFamilies, fontSize, fontStyle, stateSelect, stateParams);
+                if(font != null) {
+                    return font;
+                }
+            }
+        }
+        Util.checkGLError();
+        return renderer.loadFont(url, stateSelect, stateParams);
+    }
+    
+    private void parseFontParameter(XMLParser xmlp, FontParameter fp) throws XmlPullParserException {
+        for(int i=0,n=xmlp.getAttributeCount() ; i<n ; i++) {
+            if(xmlp.isAttributeUnused(i)) {
+                String name = xmlp.getAttributeName(i);
+                FontParameter.Parameter<?> type = FontParameter.getParameter(name);
+                if(type != null) {
+                    String value = xmlp.getAttributeValue(i);
+                    Class<?> dataClass = type.getDataClass();
+                    
+                    if(dataClass == Color.class) {
+                        @SuppressWarnings("unchecked")
+                        FontParameter.Parameter<Color> colorType = (FontParameter.Parameter<Color>)type;
+                        fp.put(colorType, ParserUtil.parseColor(xmlp, value, constants));
+                        
+                    } else if(dataClass == Integer.class) {
+                        @SuppressWarnings("unchecked")
+                        FontParameter.Parameter<Integer> intType = (FontParameter.Parameter<Integer>)type;
+                        fp.put(intType, parseMath(xmlp, value).intValue());
+                        
+                    } else if(dataClass == Boolean.class) {
+                        @SuppressWarnings("unchecked")
+                        FontParameter.Parameter<Boolean> boolType = (FontParameter.Parameter<Boolean>)type;
+                        fp.put(boolType, xmlp.parseBool(value));
+                        
+                    } else if(dataClass == String.class) {
+                        @SuppressWarnings("unchecked")
+                        FontParameter.Parameter<String> strType = (FontParameter.Parameter<String>)type;
+                        fp.put(strType, value);
+                        
+                    } else {
+                        throw xmlp.error("dataClass not yet implemented: " + dataClass);
+                    }
+                }
+            }
+        }
+    }
+    
+    private static StringList parseList(XMLParser xmlp, String name) {
+        String value = xmlp.getAttributeValue(null, name);
+        if(value != null) {
+            return parseList(value, 0);
+        }
+        return null;
+    }
+    
+    private static StringList parseList(String value, int idx) {
+        idx = TextUtil.skipSpaces(value, idx);
+        if(idx >= value.length()) {
+            return null;
+        }
+        
+        int end = TextUtil.indexOf(value, ',', idx);
+        String part = TextUtil.trim(value, idx, end);
+        
+        return new StringList(part, parseList(value, end+1));
     }
 
     private void parseThemeWildcardRef(XMLParser xmlp, ThemeInfoImpl parent) throws IOException, XmlPullParserException {
@@ -402,9 +515,12 @@ public class ThemeManager {
     }
     
     private ThemeInfoImpl parseTheme(XMLParser xmlp, String themeName, ThemeInfoImpl parent, URL baseUrl) throws IOException, XmlPullParserException {
-        ParserUtil.checkNameNotEmpty(themeName, xmlp);
-        if(themeName.indexOf('.') >= 0 || themeName.indexOf('*') >= 0) {
-            throw xmlp.error("name must not contain '.' or '*'");
+        // allow top level theme "*" as fallback theme
+        if(!themeName.equals("*") || parent != null) {
+            ParserUtil.checkNameNotEmpty(themeName, xmlp);
+            if(themeName.indexOf('.') >= 0) {
+                throw xmlp.error("'.' is not allowed in names");
+            }
         }
         ThemeInfoImpl ti = new ThemeInfoImpl(this, themeName, parent);
         ThemeInfoImpl oldEnv = mathInterpreter.setEnv(ti);
@@ -413,34 +529,39 @@ public class ThemeManager {
                 if(parent == null) {
                     throw xmlp.error("Can't merge on top level");
                 }
-                ThemeInfoImpl tiPrev = parent.children.get(themeName);
+                ThemeInfoImpl tiPrev = parent.getTheme(themeName);
                 if(tiPrev != null) {
                     ti.copy(tiPrev);
                 }
             }
             String ref = xmlp.getAttributeValue(null, "ref");
             if(ref != null) {
-                ThemeInfoImpl tiRef = (ThemeInfoImpl)findThemeInfo(ref);
+                ThemeInfoImpl tiRef = null;
+                if(parent != null) {
+                    tiRef = parent.getTheme(ref);
+                }
+                if(tiRef == null) {
+                    tiRef = (ThemeInfoImpl)findThemeInfo(ref);
+                }
                 if(tiRef == null) {
                     throw xmlp.error("referenced theme info not found: " + ref);
                 }
                 ti.copy(tiRef);
             }
-            ti.maybeUsedFromWildcard = xmlp.parseBoolFromAttribute("allowWildcard", false);
+            ti.maybeUsedFromWildcard = xmlp.parseBoolFromAttribute("allowWildcard", true);
             xmlp.nextTag();
             while(!xmlp.isEndTag()) {
                 xmlp.require(XmlPullParser.START_TAG, null, null);
                 final String tagName = xmlp.getName();
                 final String name = xmlp.getAttributeNotNull("name");
                 if("param".equals(tagName)) {
-                    Map<String, ?> entries = parseParam(xmlp, baseUrl, "param", ti);
-                    ti.params.putAll(entries);
+                    parseParam(xmlp, baseUrl, "param", ti, ti);
                 } else if("theme".equals(tagName)) {
                     if(name.length() == 0) {
                         parseThemeWildcardRef(xmlp, ti);
                     } else {
                         ThemeInfoImpl tiChild = parseTheme(xmlp, name, ti, baseUrl);
-                        ti.children.put(name, tiChild);
+                        ti.putTheme(name, tiChild);
                     }
                 } else {
                     throw xmlp.unexpected();
@@ -454,8 +575,7 @@ public class ThemeManager {
         return ti;
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<String, ?> parseParam(XMLParser xmlp, URL baseUrl, String tagName, ThemeInfoImpl parent) throws XmlPullParserException, IOException {
+    private void parseParam(XMLParser xmlp, URL baseUrl, String tagName, ThemeInfoImpl parent, ParameterMapImpl target) throws XmlPullParserException, IOException {
         try {
             xmlp.require(XmlPullParser.START_TAG, null, tagName);
             String name = xmlp.getAttributeNotNull("name");
@@ -466,10 +586,16 @@ public class ThemeManager {
             xmlp.nextTag();
             xmlp.require(XmlPullParser.END_TAG, null, tagName);
             if(value instanceof Map<?,?>) {
-                return (Map<String, ?>)value;
+                @SuppressWarnings("unchecked")
+                Map<String, ?> map = (Map<String, ?>)value;
+                if(parent == null && map.size() != 1) {
+                    throw xmlp.error("constant definitions must define exactly 1 value");
+                }
+                target.put(map);
+            } else {
+                ParserUtil.checkNameNotEmpty(name, xmlp);
+                target.put(name, value);
             }
-            ParserUtil.checkNameNotEmpty(name, xmlp);
-            return Collections.singletonMap(name, value);
         } catch (NumberFormatException ex) {
             throw xmlp.error("unable to parse value", ex);
         }
@@ -494,26 +620,26 @@ public class ThemeManager {
             if(parent == null) {
                 throw xmlp.error("Can't merge on top level");
             }
-            Object obj = parent.params.get(name);
+            Object obj = parent.getParam(name);
             if(obj instanceof ParameterMapImpl) {
                 ParameterMapImpl base = (ParameterMapImpl)obj;
-                result.params.putAll(base.params);
+                result.copy(base);
             } else if(obj != null) {
                 throw xmlp.error("Can only merge with map - found a " + obj.getClass().getSimpleName());
             }
         }
         String ref = xmlp.getAttributeValue(null, "ref");
         if(ref != null) {
-            Object obj = parent.params.get(ref);
+            Object obj = parent.getParam(ref);
             if(obj == null) {
-                obj = constants.get(ref);
+                obj = constants.getParam(ref);
                 if(obj == null) {
                     throw new IOException("Referenced map not found: " + ref);
                 }
             }
             if(obj instanceof ParameterMapImpl) {
                 ParameterMapImpl base = (ParameterMapImpl)obj;
-                result.params.putAll(base.params);
+                result.copy(base);
             } else {
                 throw new IOException("Expected a map got a " + obj.getClass().getSimpleName());
             }
@@ -521,9 +647,8 @@ public class ThemeManager {
         xmlp.nextTag();
         while(xmlp.isStartTag()) {
             String tagName = xmlp.getName();
-            Map<String, ?> params = parseParam(xmlp, baseUrl, "param", parent);
+            parseParam(xmlp, baseUrl, "param", parent, result);
             xmlp.require(XmlPullParser.END_TAG, null, tagName);
-            result.addParameters(params);
             xmlp.nextTag();
         }
         return result;
@@ -559,7 +684,7 @@ public class ThemeManager {
             String value = xmlp.nextText();
 
             if("color".equals(tagName)) {
-                return ParserUtil.parseColor(xmlp, value);
+                return ParserUtil.parseColor(xmlp, value, constants);
             }
             if("float".equals(tagName)) {
                 return parseMath(xmlp, value).floatValue();
@@ -587,7 +712,7 @@ public class ThemeManager {
                 return parseObject(xmlp, value, DialogLayout.Gap.class);
             }
             if("constant".equals(tagName)) {
-                Object result = constants.get(value);
+                Object result = constants.getParam(value);
                 if(result == null) {
                     throw xmlp.error("Unknown constant: " + value);
                 }
@@ -622,12 +747,12 @@ public class ThemeManager {
             throw xmlp.error("unable to parse value", ex);
         }
     }
-
+    
     private Number parseMath(XMLParser xmlp, String str) throws XmlPullParserException {
         try {
             return mathInterpreter.execute(str);
         } catch(ParseException ex) {
-            throw xmlp.error("unable to evaluate", ex);
+            throw xmlp.error("unable to evaluate", unwrap(ex));
         }
     }
 
@@ -635,14 +760,22 @@ public class ThemeManager {
         try {
             return mathInterpreter.executeCreateObject(str, type);
         } catch(ParseException ex) {
-            throw xmlp.error("unable to evaluate", ex);
+            throw xmlp.error("unable to evaluate", unwrap(ex));
+        }
+    }
+    
+    private Throwable unwrap(ParseException ex) {
+        if(ex.getCause() != null) {
+            return ex.getCause();
+        } else {
+            return ex;
         }
     }
 
-    ThemeInfo resolveWildcard(String base, String name) {
+    ThemeInfo resolveWildcard(String base, String name, boolean useFallback) {
         assert(base.length() == 0 || base.endsWith("."));
         String fullPath = base.concat(name);
-        ThemeInfo info = findThemeInfo(fullPath, false);
+        ThemeInfo info = findThemeInfo(fullPath, false, useFallback);
         if(info != null && ((ThemeInfoImpl)info).maybeUsedFromWildcard) {
             return info;
         }
@@ -659,21 +792,26 @@ public class ThemeManager {
         }
 
         public void accessVariable(String name) {
-            if(env != null) {
-                Object obj = env.getParameterValue(name, false);
+            for(ThemeInfoImpl e=env ; e!=null ; e=e.parent) {
+                Object obj = e.getParam(name);
                 if(obj != null) {
                     push(obj);
                     return;
                 }
-                obj = env.getChildTheme(name);
+                obj = e.getChildThemeImpl(name, false);
                 if(obj != null) {
                     push(obj);
                     return;
                 }
             }
-            Object obj = constants.get(name);
+            Object obj = constants.getParam(name);
             if(obj != null) {
                 push(obj);
+                return;
+            }
+            Font font = fonts.get(name);
+            if(font != null) {
+                push(font);
                 return;
             }
             throw new IllegalArgumentException("variable not found: " + name);
@@ -681,8 +819,14 @@ public class ThemeManager {
 
         @Override
         protected Object accessField(Object obj, String field) {
+            if(obj instanceof ThemeInfoImpl) {
+                Object result = ((ThemeInfoImpl)obj).getTheme(field);
+                if(result != null) {
+                    return result;
+                }
+            }
             if(obj instanceof ParameterMapImpl) {
-                Object result = ((ParameterMapImpl)obj).getParameterValue(field, false);
+                Object result = ((ParameterMapImpl)obj).getParam(field);
                 if(result == null) {
                     throw new IllegalArgumentException("field not found: " + field);
                 }

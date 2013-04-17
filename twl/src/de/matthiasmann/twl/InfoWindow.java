@@ -36,7 +36,7 @@ package de.matthiasmann.twl;
  *
  * @author Matthias Mann
  */
-public class InfoWindow extends Widget {
+public class InfoWindow extends Container {
 
     private final Widget owner;
 
@@ -83,31 +83,6 @@ public class InfoWindow extends Widget {
      * Called after the info window has been closed
      */
     protected void infoWindowClosed() {
-    }
-
-    @Override
-    protected void layout() {
-        layoutChildrenFullInnerArea();
-    }
-
-    @Override
-    public int getMinWidth() {
-        return BoxLayout.computeMinWidthVertical(this);
-    }
-
-    @Override
-    public int getMinHeight() {
-        return BoxLayout.computeMinHeightHorizontal(this);
-    }
-
-    @Override
-    public int getPreferredInnerWidth() {
-        return BoxLayout.computePreferredWidthVertical(this);
-    }
-
-    @Override
-    public int getPreferredInnerHeight() {
-        return BoxLayout.computePreferredHeightHorizontal(this);
     }
 
     private static boolean isParentInfoWindow(Widget w) {

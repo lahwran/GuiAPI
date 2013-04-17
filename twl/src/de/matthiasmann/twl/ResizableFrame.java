@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -34,8 +34,15 @@ import de.matthiasmann.twl.renderer.MouseCursor;
 import de.matthiasmann.twl.utils.TintAnimator;
 
 /**
- * A resizable frame
+ * A resizable frame.
  *
+ * <p>All child widgets (which are not part of the frame itself) cover
+ * the complete inner area {@link #layoutChildFullInnerArea(de.matthiasmann.twl.Widget) }.</p>
+ * 
+ * <p>The preferred way to use the ResizableFrame is to add a single
+ * widget which will manage the layout of all it's children.
+ * {@link DialogLayout} can be used for this to avoid creating a new class.</p>
+ * 
  * @author Matthias Mann
  */
 public class ResizableFrame extends Widget {
@@ -78,6 +85,7 @@ public class ResizableFrame extends Widget {
     
     private final MouseCursor[] cursors;
     private ResizableAxis resizableAxis = ResizableAxis.BOTH;
+    private boolean draggable = true;
     private DragMode dragMode = DragMode.NONE;
     private int dragStartX;
     private int dragStartY;
@@ -140,6 +148,23 @@ public class ResizableFrame extends Widget {
         }
     }
 
+    public boolean isDraggable() {
+        return draggable;
+    }
+
+    /**
+     * Controls weather the ResizableFrame can be dragged via the title bar or
+     * not, default is true.
+     * 
+     * <p>When set to false the resizing should also be disabled to present a
+     * consistent behavior to the user.</p>
+     * 
+     * @param movable if dragging via the title bar is allowed - default is true.
+     */
+    public void setDraggable(boolean movable) {
+        this.draggable = movable;
+    }
+
     public boolean hasTitleBar() {
         return titleWidget != null && titleWidget.getParent() == this;
     }
@@ -162,6 +187,23 @@ public class ResizableFrame extends Widget {
             closeButton.setVisible(closeButton.hasCallbacks());
         }
     }
+
+    public int getFadeDurationActivate() {
+        return fadeDurationActivate;
+    }
+
+    public int getFadeDurationDeactivate() {
+        return fadeDurationDeactivate;
+    }
+
+    public int getFadeDurationHide() {
+        return fadeDurationHide;
+    }
+
+    public int getFadeDurationShow() {
+        return fadeDurationShow;
+    }
+    
 
     @Override
     public void setVisible(boolean visible) {
@@ -186,11 +228,7 @@ public class ResizableFrame extends Widget {
 
     protected void applyThemeResizableFrame(ThemeInfo themeInfo) {
         for(DragMode m : DragMode.values()) {
-            if(m.cursorName != null) {
-                cursors[m.ordinal()] = themeInfo.getMouseCursor(m.cursorName);
-            } else {
-                cursors[m.ordinal()] = null;
-            }
+            cursors[m.ordinal()] = themeInfo.getMouseCursor(m.cursorName);
         }
         titleAreaTop = themeInfo.getParameter("titleAreaTop", 0);
         titleAreaLeft = themeInfo.getParameter("titleAreaLeft", 0);
@@ -233,7 +271,7 @@ public class ResizableFrame extends Widget {
     protected void fadeTo(Color color, int duration) {
         //System.out.println("Start fade to " + color + " over " + duration + " ms");
         allocateTint().fadeTo(color, duration);
-        if(!super.isVisible() && color.getA() != 0) {
+        if(!super.isVisible() && color.getAlpha() != 0) {
             setHardVisible(true);
         }
     }
@@ -396,6 +434,42 @@ public class ResizableFrame extends Widget {
     }
 
     @Override
+    public int getMaxWidth() {
+        int maxWidth = super.getMaxWidth();
+        for(int i=0,n=getNumChildren() ; i<n ; i++) {
+            Widget child = getChild(i);
+            if(!isFrameElement(child)) {
+                int aMaxWidth = child.getMaxWidth();
+                if(aMaxWidth > 0) {
+                    aMaxWidth += getBorderHorizontal();
+                    if(maxWidth == 0 || aMaxWidth < maxWidth) {
+                        maxWidth = aMaxWidth;
+                    }
+                }
+            }
+        }
+        return maxWidth;
+    }
+
+    @Override
+    public int getMaxHeight() {
+        int maxHeight = super.getMaxHeight();
+        for(int i=0,n=getNumChildren() ; i<n ; i++) {
+            Widget child = getChild(i);
+            if(!isFrameElement(child)) {
+                int aMaxHeight = child.getMaxHeight();
+                if(aMaxHeight > 0) {
+                    aMaxHeight += getBorderVertical();
+                    if(maxHeight == 0 || aMaxHeight < maxHeight) {
+                        maxHeight = aMaxHeight;
+                    }
+                }
+            }
+        }
+        return maxHeight;
+    }
+
+    @Override
     public int getPreferredInnerWidth() {
         int prefWidth = 0;
         for(int i=0,n=getNumChildren() ; i<n ; i++) {
@@ -460,10 +534,6 @@ public class ResizableFrame extends Widget {
             return true;
         }
 
-        DragMode cursorMode = getDragMode(evt.getMouseX(), evt.getMouseY());
-        MouseCursor cursor = cursors[cursorMode.ordinal()];
-        setMouseCursor(cursor);
-
         if(!isMouseExit && resizeHandle != null && resizeHandle.isVisible()) {
             resizeHandle.getAnimationState().setAnimationState(
                     TextWidget.STATE_HOVER, resizeHandle.isMouseInside(evt));
@@ -473,7 +543,6 @@ public class ResizableFrame extends Widget {
             if(evt.getType() == Event.Type.MOUSE_BTNDOWN &&
                     evt.getMouseButton() == Event.MOUSE_LBUTTON &&
                     handleMouseDown(evt)) {
-                setMouseCursor(cursors[dragMode.ordinal()]);
                 return true;
             }
         }
@@ -485,6 +554,19 @@ public class ResizableFrame extends Widget {
         return evt.isMouseEvent();
     }
 
+    @Override
+    public MouseCursor getMouseCursor(Event evt) {
+        DragMode cursorMode = dragMode;
+        if(cursorMode == DragMode.NONE) {
+            cursorMode = getDragMode(evt.getMouseX(), evt.getMouseY());
+            if(cursorMode == DragMode.NONE) {
+                return getMouseCursor();
+            }
+        }
+        
+        return cursors[cursorMode.ordinal()];
+    }
+
     private DragMode getDragMode(int mx, int my) {
         boolean left = mx < getInnerX();
         boolean right = mx >= getInnerRight();
@@ -494,7 +576,11 @@ public class ResizableFrame extends Widget {
 
         if(titleWidget != null && titleWidget.getParent() == this) {
             if(titleWidget.isInside(mx, my)) {
-                return DragMode.POSITION;
+                if(draggable) {
+                    return DragMode.POSITION;
+                } else {
+                    return DragMode.NONE;
+                }
             }
             top = my < titleWidget.getY();
         }
@@ -635,7 +721,7 @@ public class ResizableFrame extends Widget {
         case POSITION:
             if(getParent() != null) {
                 int minY = getParent().getInnerY();
-                int maxY = getParent().getInnerHeight();
+                int maxY = getParent().getInnerBottom();
                 int height = dragInitialBottom - dragInitialTop;
                 top = Math.max(minY, Math.min(maxY - height, top + dy));
                 bottom = Math.min(maxY, Math.max(minY + height, bottom + dy));

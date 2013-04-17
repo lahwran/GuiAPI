@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010, Matthias Mann
+ * Copyright (c) 2008-2012, Matthias Mann
  *
  * All rights reserved.
  *
@@ -37,19 +37,23 @@ import de.matthiasmann.twl.renderer.AnimationState.StateKey;
 import de.matthiasmann.twl.renderer.CacheContext;
 import de.matthiasmann.twl.renderer.DynamicImage;
 import de.matthiasmann.twl.renderer.FontParameter;
+import de.matthiasmann.twl.renderer.Gradient;
+import de.matthiasmann.twl.renderer.Image;
 import de.matthiasmann.twl.renderer.MouseCursor;
 import de.matthiasmann.twl.renderer.Font;
+import de.matthiasmann.twl.renderer.FontMapper;
 import de.matthiasmann.twl.renderer.LineRenderer;
+import de.matthiasmann.twl.renderer.OffscreenRenderer;
 import de.matthiasmann.twl.renderer.Renderer;
 import de.matthiasmann.twl.renderer.Texture;
+import de.matthiasmann.twl.utils.ClipStack;
+import de.matthiasmann.twl.utils.StateSelect;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Locale;
-import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.lwjgl.BufferUtils;
@@ -61,6 +65,7 @@ import org.lwjgl.opengl.ContextCapabilities;
 import org.lwjgl.opengl.EXTTextureRectangle;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GLContext;
+import org.lwjgl.opengl.Util;
 
 /**
  * A renderer using only GL11 features.
@@ -77,11 +82,15 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
     public static final StateKey STATE_MIDDLE_MOUSE_BUTTON = StateKey.get("middleMouseButton");
     public static final StateKey STATE_RIGHT_MOUSE_BUTTON = StateKey.get("rightMouseButton");
 
+    public static final FontParameter.Parameter<Integer> FONTPARAM_OFFSET_X = FontParameter.newParameter("offsetX", 0);
+    public static final FontParameter.Parameter<Integer> FONTPARAM_OFFSET_Y = FontParameter.newParameter("offsetY", 0);
+    public static final FontParameter.Parameter<Integer> FONTPARAM_UNDERLINE_OFFSET = FontParameter.newParameter("underlineOffset", 0);  
+    
     private final IntBuffer ib16;
     final int maxTextureSize;
 
     private int viewportX;
-    private int viewportY;
+    private int viewportBottom;
     private int width;
     private int height;
     private boolean hasScissor;
@@ -93,19 +102,27 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
     private int mouseX;
     private int mouseY;
     private LWJGLCacheContext cacheContext;
+    private FontMapper fontMapper;
 
     final SWCursorAnimState swCursorAnimState;
     final ArrayList<TextureArea> textureAreas;
+    final ArrayList<TextureAreaRotated> rotatedTextureAreas;
     final ArrayList<LWJGLDynamicImage> dynamicImages;
-    TintStack tintStack;
-
+    
+    protected TintStack tintStack;
+    protected final ClipStack clipStack;
+    protected final Rect clipRectTemp;
+    
     @SuppressWarnings("OverridableMethodCallInConstructor")
     public LWJGLRenderer() throws LWJGLException {
         this.ib16 = BufferUtils.createIntBuffer(16);
         this.textureAreas = new ArrayList<TextureArea>();
+        this.rotatedTextureAreas = new ArrayList<TextureAreaRotated>();
         this.dynamicImages = new ArrayList<LWJGLDynamicImage>();
         this.tintStateRoot = new TintStack();
         this.tintStack = tintStateRoot;
+        this.clipStack = new ClipStack();
+        this.clipRectTemp = new Rect();
         syncViewportSize();
 
         GL11.glGetInteger(GL11.GL_MAX_TEXTURE_SIZE, ib16);
@@ -181,8 +198,12 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
             for(TextureArea ta : textureAreas) {
                 ta.destroyRepeatCache();
             }
+            for(TextureAreaRotated tar : rotatedTextureAreas) {
+                tar.destroyRepeatCache();
+            }
         } finally {
             textureAreas.clear();
+            rotatedTextureAreas.clear();
         }
     }
 
@@ -203,9 +224,26 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
         ib16.clear();
         GL11.glGetInteger(GL11.GL_VIEWPORT, ib16);
         viewportX = ib16.get(0);
-        viewportY = ib16.get(1);
         width = ib16.get(2);
         height = ib16.get(3);
+        viewportBottom = ib16.get(1) + height;
+    }
+    
+    /**
+     * Sets the viewport size & position.
+     * <p>This method is preferred over {@link #syncViewportSize() } as it avoids
+     * calling {@link GL11#glGetInteger(int, java.nio.IntBuffer) }.</p>
+     * 
+     * @param x the X position (GL_VIEWPORT index 0)
+     * @param y the Y position (GL_VIEWPORT index 1)
+     * @param width the width (GL_VIEWPORT index 2)
+     * @param height the height (GL_VIEWPORT index 3)
+     */
+    public void setViewport(int x, int y, int width, int height) {
+        this.viewportX = x;
+        this.viewportBottom = y + height;
+        this.width = width;
+        this.height = height;
     }
 
     public long getTimeMillis() {
@@ -216,18 +254,8 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
         }
         return time;
     }
-
-    /**
-     * Setup GL to start rendering the GUI. It assumes default GL state.
-     */
-    public boolean startRenderering() {
-        if(width <= 0 || height <= 0) {
-            return false;
-        }
-
-        hasScissor = false;
-        tintStack = tintStateRoot;
-        
+    
+    protected void setupGLState() {
         GL11.glPushAttrib(GL11.GL_ENABLE_BIT|GL11.GL_TRANSFORM_BIT|GL11.GL_HINT_BIT|
                 GL11.GL_COLOR_BUFFER_BIT|GL11.GL_SCISSOR_BIT|GL11.GL_LINE_BIT|GL11.GL_TEXTURE_BIT);
         GL11.glMatrixMode(GL11.GL_PROJECTION);
@@ -242,23 +270,56 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
         GL11.glEnable(GL11.GL_LINE_SMOOTH);
         GL11.glDisable(GL11.GL_DEPTH_TEST);
         GL11.glDisable(GL11.GL_LIGHTING);
+        GL11.glDisable(GL11.GL_SCISSOR_TEST);
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GL11.glHint(GL11.GL_LINE_SMOOTH_HINT, GL11.GL_NICEST);
-        RenderScale.doscale();
-        
-        return true;
     }
-
-    public void endRendering() {
-        if(swCursor != null) {
-            tintStack = tintStateRoot;
-            swCursor.render(mouseX, mouseY);
-        }
-        RenderScale.descale();
+    
+    protected void revertGLState() {
         GL11.glPopMatrix();
         GL11.glMatrixMode(GL11.GL_PROJECTION);
         GL11.glPopMatrix();
         GL11.glPopAttrib();
+    }
+    
+    /**
+     * Setup GL to start rendering the GUI. It assumes default GL state.
+     */
+    public boolean startRendering() {
+        if(width <= 0 || height <= 0) {
+            return false;
+        }
+        
+        prepareForRendering();
+        setupGLState();
+        RenderScale.doscale();
+        return true;
+    }
+
+    public void endRendering() {
+        renderSWCursor();
+        RenderScale.descale();
+        revertGLState();
+    }
+    
+    /**
+     * Call to revert the GL state to the state before calling
+     * {@link #startRendering()}.
+     * @see #resumeRendering() 
+     */
+    public void pauseRendering() {
+    	RenderScale.descale();
+        revertGLState();
+    }
+    
+    /**
+     * Resume rendering after a call to {@link #pauseRendering()}.
+     */
+    public void resumeRendering() {
+        hasScissor = false;
+        setupGLState();
+        RenderScale.doscale();
+        setClipRect();
     }
     
     public int getHeight() {
@@ -268,15 +329,42 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
     public int getWidth() {
         return width;
     }
+    
+    /**
+     * Retrieves the X position of the OpenGL viewport (index 0 of GL_VIEWPORT)
+     * @return the X position of the OpenGL viewport
+     */
+    public int getViewportX() {
+        return viewportX;
+    }
+    
+    /**
+     * Retrieves the Y position of the OpenGL viewport (index 1 of GL_VIEWPORT)
+     * @return the Y position of the OpenGL viewport
+     */
+    public int getViewportY() {
+        return viewportBottom - height;
+    }
 
-    public Font loadFont(URL baseUrl, Map<String, String> parameter, Collection<FontParameter> conditionalParameter) throws IOException {
-        String fileName = parameter.get("filename");
-        if(fileName == null) {
-            throw new IllegalArgumentException("filename parameter required");
+    public Font loadFont(URL url, StateSelect select, FontParameter ... parameterList) throws IOException {
+    	Util.checkGLError();
+    	if(url == null) {
+            throw new NullPointerException("url");
         }
-        URL url = new URL(baseUrl, fileName);
+        if(select == null) {
+            throw new NullPointerException("select");
+        }
+        if(parameterList == null) {
+            throw new NullPointerException("parameterList");
+        }
+        
+        if(select.getNumExpressions() + 1 != parameterList.length) {
+            throw new IllegalArgumentException("select.getNumExpressions() + 1 != parameterList.length");
+        }
+        Util.checkGLError();
         BitmapFont bmFont = activeCacheContext().loadBitmapFont(url);
-        return new LWJGLFont(this, bmFont, parameter, conditionalParameter);
+        Util.checkGLError();
+        return new LWJGLFont(this, bmFont, select, parameterList);
     }
 
     public Texture loadTexture(URL url, String formatStr, String filterStr) throws IOException {
@@ -303,6 +391,25 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
         return this;
     }
 
+    public OffscreenRenderer getOffscreenRenderer() {
+        return null;
+    }
+
+    public FontMapper getFontMapper() {
+        return fontMapper;
+    }
+    
+    /**
+     * Installs a font mapper. It is the responsibility of the font mapper to
+     * manage the OpenGL state correctly so that normal rendering by LWJGLRenderer
+     * is not disturbed.
+     * 
+     * @param fontMapper the font mapper object - can be null.
+     */
+    public void setFontMapper(FontMapper fontMapper) {
+        this.fontMapper = fontMapper;
+    }
+    
     public DynamicImage createDynamicImage(int width, int height) {
         if(width <= 0) {
             throw new IllegalArgumentException("width");
@@ -311,73 +418,88 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
             throw new IllegalArgumentException("height");
         }
         if(width > maxTextureSize || height > maxTextureSize) {
+            getLogger().log(Level.WARNING, "requested size {0} x {1} exceeds maximum texture size {3}",
+                    new Object[]{ width, height, maxTextureSize });
             return null;
         }
 
+        int texWidth = width;
+        int texHeight = height;
+        
         ContextCapabilities caps = GLContext.getCapabilities();
         boolean useTextureRectangle = caps.GL_EXT_texture_rectangle || caps.GL_ARB_texture_rectangle;
 
         if(!useTextureRectangle && !caps.GL_ARB_texture_non_power_of_two) {
-            if((width & (width-1)) != 0 || (height & (height-1)) != 0) {
-                return null;
-            }
+            texWidth = nextPowerOf2(width);
+            texHeight = nextPowerOf2(height);
         }
 
         // ARB and EXT versions use the same enum !
         int proxyTarget = useTextureRectangle ?
             EXTTextureRectangle.GL_PROXY_TEXTURE_RECTANGLE_EXT : GL11.GL_PROXY_TEXTURE_2D;
 
-        GL11.glTexImage2D(proxyTarget, 0, GL11.GL_RGBA, width, height, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, (ByteBuffer)null);
+        GL11.glTexImage2D(proxyTarget, 0, GL11.GL_RGBA, texWidth, texHeight, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, (ByteBuffer)null);
         ib16.clear();
         GL11.glGetTexLevelParameter(proxyTarget, 0, GL11.GL_TEXTURE_WIDTH, ib16);
-        if(ib16.get(0) != width) {
+        if(ib16.get(0) != texWidth) {
+            getLogger().log(Level.WARNING, "requested size {0} x {1} failed proxy texture test",
+                    new Object[]{ texWidth, texHeight });
             return null;
         }
 
         // ARB and EXT versions use the same enum !
         int target = useTextureRectangle ?
             EXTTextureRectangle.GL_TEXTURE_RECTANGLE_EXT : GL11.GL_TEXTURE_2D;
-        int id = glGenTexture();
+        int id = GL11.glGenTextures();
 
         GL11.glBindTexture(target, id);
-        GL11.glTexImage2D(target, 0, GL11.GL_RGBA, width, height, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, (ByteBuffer)null);
+        GL11.glTexImage2D(target, 0, GL11.GL_RGBA, texWidth, texHeight, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, (ByteBuffer)null);
         GL11.glTexParameteri(target, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST);
         GL11.glTexParameteri(target, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_NEAREST);
 
-        LWJGLDynamicImage image = new LWJGLDynamicImage(this, target, id, width, height, Color.WHITE);
+        LWJGLDynamicImage image = new LWJGLDynamicImage(this, target, id, width, height, texWidth, texHeight, Color.WHITE);
         dynamicImages.add(image);
         return image;
     }
 
-    public void setClipRect(Rect rect) {
-        if(rect == null) {
-            GL11.glDisable(GL11.GL_SCISSOR_TEST);
-            hasScissor = false;
-        } else {
-            GL11.glScissor(viewportX + rect.getX()*RenderScale.scale, viewportY + getHeight() - rect.getBottom()*RenderScale.scale, rect.getWidth()*RenderScale.scale, rect.getHeight()*RenderScale.scale);
-            if(!hasScissor) {
-                GL11.glEnable(GL11.GL_SCISSOR_TEST);
-                hasScissor = true;
-            }
-        }
+    public Image createGradient(Gradient gradient) {
+        return new GradientImage(this, gradient);
+    }
+
+    public void clipEnter(int x, int y, int w, int h) {
+        clipStack.push(x, y, w, h);
+        setClipRect();
+    }
+
+    public void clipEnter(Rect rect) {
+        clipStack.push(rect);
+        setClipRect();
+    }
+
+    public void clipLeave() {
+        clipStack.pop();
+        setClipRect();
+    }
+
+    public boolean clipIsEmpty() {
+        return clipStack.isClipEmpty();
     }
 
     public void setCursor(MouseCursor cursor) {
         try {
-            if(Mouse.isInsideWindow()) {
-                swCursor = null;
+            swCursor = null;
+            if(isMouseInsideWindow()) {
                 if(cursor instanceof LWJGLCursor) {
-                    Mouse.setNativeCursor(((LWJGLCursor)cursor).cursor);
+                    setNativeCursor(((LWJGLCursor)cursor).cursor);
                 } else if(cursor instanceof SWCursor) {
-                    Mouse.setNativeCursor(emptyCursor);
+                    setNativeCursor(emptyCursor);
                     swCursor = (SWCursor)cursor;
                 } else {
-                    Mouse.setNativeCursor(null);
+                    setNativeCursor(null);
                 }
             }
         } catch(LWJGLException ex) {
-            Logger.getLogger(LWJGLRenderer.class.getName()).log(Level.WARNING,
-                    "Could not set native cursor", ex);
+            getLogger().log(Level.WARNING, "Could not set native cursor", ex);
         }
     }
 
@@ -391,17 +513,22 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
     }
 
     public LWJGLTexture load(URL textureUrl, LWJGLTexture.Format fmt, LWJGLTexture.Filter filter) throws IOException {
-        return load(textureUrl, fmt, filter, null);
+    	Util.checkGLError();
+    	return load(textureUrl, fmt, filter, null);
     }
 
     public LWJGLTexture load(URL textureUrl, LWJGLTexture.Format fmt, LWJGLTexture.Filter filter, TexturePostProcessing tpp) throws IOException {
         if(textureUrl == null) {
             throw new NullPointerException("textureUrl");
         }
+        Util.checkGLError();
         LWJGLCacheContext cc = activeCacheContext();
+        Util.checkGLError();
         if(tpp != null) {
+        	Util.checkGLError();
             return cc.createTexture(textureUrl, fmt, filter, tpp);
         } else {
+        	Util.checkGLError();
             return cc.loadTexture(textureUrl, fmt, filter);
         }
     }
@@ -412,6 +539,15 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
 
     public void popGlobalTintColor() {
         tintStack = tintStack.pop();
+    }
+    
+    /**
+     * Pushes a white entry on the tint stack which ignores the previous
+     * tint color. It must be removed by calling {@link #popGlobalTintColor()}.
+     * <p>This is useful when rendering to texture</p>
+     */
+    public void pushGlobalTintColorReset() {
+        tintStack = tintStack.pushReset();
     }
 
     /**
@@ -473,34 +609,97 @@ public class LWJGLRenderer implements Renderer, LineRenderer {
         GL11.glVertex2f(x1 + dx + dy, y1 + dy - dx);
     }
 
+    protected void prepareForRendering() {
+        hasScissor = false;
+        tintStack = tintStateRoot;
+        clipStack.clearStack();
+    }
+
+    protected void renderSWCursor() {
+        if(swCursor != null) {
+            tintStack = tintStateRoot;
+            swCursor.render(mouseX, mouseY);
+        }
+    }
+    
+    protected void setNativeCursor(Cursor cursor) throws LWJGLException {
+        Mouse.setNativeCursor(cursor);
+    }
+    
+    protected boolean isMouseInsideWindow() {
+        return Mouse.isInsideWindow();
+    }
+
     protected void getTintedColor(Color color, float[] result) {
-        result[0] = tintStack.r*(color.getR()&255);
-        result[1] = tintStack.g*(color.getG()&255);
-        result[2] = tintStack.b*(color.getB()&255);
-        result[3] = tintStack.a*(color.getA()&255);
+        result[0] = tintStack.r*color.getRed();
+        result[1] = tintStack.g*color.getGreen();
+        result[2] = tintStack.b*color.getBlue();
+        result[3] = tintStack.a*color.getAlpha();
+    }
+    
+    /**
+     * Computes the tinted color from the given color.
+     * @param color the input color in RGBA order, value range is 0.0 (black) to 255.0 (white).
+     * @param result the tinted color in RGBA order, can be the same array as color.
+     */
+    protected void getTintedColor(float[] color, float[] result) {
+        result[0] = tintStack.r*color[0];
+        result[1] = tintStack.g*color[1];
+        result[2] = tintStack.b*color[2];
+        result[3] = tintStack.a*color[3];
+    }
+
+    public void setClipRect() {
+        final Rect rect = clipRectTemp;
+        if(clipStack.getClipRect(rect)) {
+            GL11.glScissor(viewportX + rect.getX()*RenderScale.scale, viewportBottom - rect.getBottom()*RenderScale.scale, rect.getWidth()*RenderScale.scale, rect.getHeight()*RenderScale.scale);
+            if(!hasScissor) {
+                GL11.glEnable(GL11.GL_SCISSOR_TEST);
+                hasScissor = true;
+            }
+        } else if(hasScissor) {
+            GL11.glDisable(GL11.GL_SCISSOR_TEST);
+            hasScissor = false;
+        }
+    }
+
+    /**
+     * Retrieves the active clip region from the top of the stack
+     * @param rect the rect coordinates - may not be updated when clipping is disabled
+     * @return true if clipping is active, false if clipping is disabled
+     */
+    public boolean getClipRect(Rect rect) {
+        return clipStack.getClipRect(rect);
     }
 
     Logger getLogger() {
         return Logger.getLogger(LWJGLRenderer.class.getName());
     }
-
-    int glGenTexture() {
-        ib16.clear().limit(1);
-        GL11.glGenTextures(ib16);
-        return ib16.get(0);
-    }
-
-    void glDeleteTexture(int id) {
-        ib16.clear();
-        ib16.put(id).flip();
-        GL11.glDeleteTextures(ib16);
+    
+    /**
+     * If the passed value is not a power of 2 then return the next highest power of 2
+     * otherwise the value is returned unchanged.
+     * 
+     * <p> Warren Jr., Henry S. (2002). Hacker's Delight. Addison Wesley. pp. 48. ISBN 978-0201914658</p>
+     * 
+     * @param i a non negative number &lt;= 2^31
+     * @return the smallest power of 2 which is &gt;= i
+     */
+    private static int nextPowerOf2(int i) {
+        i--;
+        i |= (i >>  1);
+        i |= (i >>  2);
+        i |= (i >>  4);
+        i |= (i >>  8);
+        i |= (i >> 16);
+        return i+1;
     }
 
     private static class SWCursorAnimState implements AnimationState {
         private final long[] lastTime;
         private final boolean[] active;
 
-        public SWCursorAnimState() {
+        SWCursorAnimState() {
             lastTime = new long[3];
             active = new boolean[3];
         }
